@@ -167,7 +167,7 @@ jobs:
       - name: Desplegar la nueva versión con CloudFormation
         run: |
           aws cloudformation deploy --stack-name codigo00 --template-file infra/codigo00-infra.yaml \
-            --parameter-overrides ImageUri="$IMAGE" DesiredCount=2 \
+            --parameter-overrides ImageUri="$IMAGE" DesiredCount=1 \
               LabRoleArn=${{ vars.LAB_ROLE_ARN }} CertificateArn=${{ vars.CERTIFICATE_ARN }} \
             --no-fail-on-empty-changeset
 

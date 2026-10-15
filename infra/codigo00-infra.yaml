@@ -17,8 +17,11 @@ Parameters:
     Description: ARN del certificado de AWS Certificate Manager para el listener HTTPS.
   DesiredCount:
     Type: Number
-    Default: 2
-    Description: Número de tareas de la API (0 solo en la creación inicial, antes de publicar la primera imagen).
+    Default: 1
+    AllowedValues: [0, 1]
+    Description: >-
+      Número de tareas de la API (0 solo en la creación inicial). Se limita a 1 porque la API guarda las
+      transacciones en una base SQLite local; escalar requiere una base de datos compartida.
   VpcCidr:
     Type: String
     Default: 10.20.0.0/16
