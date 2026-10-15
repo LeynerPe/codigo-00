@@ -1,0 +1,6 @@
+# Dependencias de ejecución (fijadas para que la compuerta SCA sea reproducible)
+fastapi==0.143.1
+starlette==1.8.0
+pydantic==2.14.1
+pydantic-core==2.50.1
+uvicorn==0.54.0

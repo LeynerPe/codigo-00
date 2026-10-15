@@ -1,0 +1,62 @@
+# Compuerta G6 — análisis dinámico de seguridad (DAST) con OWASP ZAP.
+# Importa el contrato OpenAPI del servicio desplegado, ejecuta el escaneo
+# pasivo y el activo, y genera reportes JSON y HTML. La evaluación de la
+# compuerta (0 alertas de riesgo medio o alto) la hace pipeline/run_pipeline.py.
+env:
+  contexts:
+    - name: codigo00
+      urls:
+        - ${TARGET_URL}
+      includePaths:
+        - ${TARGET_URL}.*
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+
+jobs:
+  - type: replacer
+    parameters:
+      deleteAllRules: true
+    rules:
+      - description: Llave de API del comercio de prueba
+        url: ""
+        matchType: req_header
+        matchString: X-API-Key
+        matchRegex: false
+        replacementString: ${API_KEY}
+        tokenProcessing: false
+
+  - type: openapi
+    parameters:
+      apiUrl: ${TARGET_URL}/openapi.json
+      targetUrl: ${TARGET_URL}
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 2
+
+  - type: activeScan
+    parameters:
+      context: codigo00
+      maxScanDurationInMins: 10
+      maxRuleDurationInMins: 2
+      threadPerHost: 4
+    policyDefinition:
+      defaultStrength: medium
+      defaultThreshold: medium
+
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: ${REPORT_DIR}
+      reportFile: zap-report.json
+    risks: [high, medium, low, info]
+
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: ${REPORT_DIR}
+      reportFile: zap-report.html
+      reportTitle: "Código 00 — Reporte DAST"
+    risks: [high, medium, low, info]

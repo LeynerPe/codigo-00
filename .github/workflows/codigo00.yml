@@ -1,0 +1,168 @@
+# Código 00 — compuertas automatizadas de calidad y seguridad.
+# Un cambio solo llega a producción si todas las compuertas responden "00".
+name: Código 00 — pipeline DevSecOps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codigo00-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  CODIGO00_API_KEYS: '{"ci-key-a": "COMERCIO_A", "ci-key-b": "COMERCIO_B"}'
+
+jobs:
+  # ---------------------------------------------------------------- Etapa 1
+  g1-pruebas:
+    name: G1 · Pruebas unitarias y funcionales + cobertura ≥ 85 %
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: >
+          pytest tests/unit tests/functional --cov=app --cov-branch
+          --cov-fail-under=85 --cov-report=xml --junitxml=g1-junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: g1-pruebas, path: "g1-junit.xml\ncoverage.xml" }
+
+  g2-sast:
+    name: G2 · SAST (Bandit, bloquea severidad media o alta)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: bandit -r app -f json -o g2-bandit.json || true
+      - run: bandit -r app --severity-level medium
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: g2-sast, path: g2-bandit.json }
+
+  g3-sca:
+    name: G3 · SCA (pip-audit) + SBOM CycloneDX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: cyclonedx-py requirements requirements.txt --of JSON -o g3-sbom.cdx.json
+      - run: pip-audit -r requirements.txt -f json -o g3-pip-audit.json || true
+      - run: pip-audit -r requirements.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: g3-sca, path: "g3-sbom.cdx.json\ng3-pip-audit.json" }
+
+  g5-seguridad-negocio:
+    name: G5 · Pruebas de seguridad de la lógica de negocio
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest tests/security -m security --junitxml=g5-junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: g5-seguridad, path: g5-junit.xml }
+
+  # ---------------------------------------------------------------- Etapa 2
+  pruebas-dinamicas:
+    name: G4 · G6 · G7 · Contrato, DAST y rendimiento sobre el servicio
+    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio]
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen
+        run: docker build -t codigo00:${{ github.sha }} .
+      - name: Levantar servicio en entorno de pruebas
+        run: |
+          docker run -d --name codigo00 --network host \
+            -e CODIGO00_API_KEYS='${{ env.CODIGO00_API_KEYS }}' -e CODIGO00_ENABLE_DOCS=1 \
+            codigo00:${{ github.sha }}
+          for i in $(seq 1 30); do curl -fs $BASE_URL/health && break; sleep 1; done
+
+      - name: G4 · Pruebas de contrato (Newman)
+        run: |
+          npx --yes newman@6 run postman/codigo00.postman_collection.json \
+            --env-var baseUrl=$BASE_URL --env-var apiKeyA=ci-key-a --env-var apiKeyB=ci-key-b \
+            --reporters cli,json --reporter-json-export g4-newman.json
+
+      - name: G6 · DAST (OWASP ZAP, bloquea riesgo medio o alto)
+        run: |
+          mkdir -p g6-zap && chmod 777 g6-zap
+          sed -e "s#\${TARGET_URL}#$BASE_URL#g" -e "s#\${API_KEY}#ci-key-a#g" \
+              -e "s#\${REPORT_DIR}#/zap/wrk/g6-zap#g" zap/plan-dast.yaml > g6-zap/plan.yaml
+          docker run --rm --network host -v "$PWD":/zap/wrk ghcr.io/zaproxy/zaproxy:stable \
+            zap.sh -cmd -silent -config scanner.injectable=19 -autorun /zap/wrk/g6-zap/plan.yaml
+          python pipeline/evaluar_zap.py g6-zap/zap-report.json
+
+      - name: G7 · Rendimiento (k6, p95 < 300 ms y errores < 1 %)
+        uses: grafana/setup-k6-action@v1
+      - run: k6 run --env API_KEY_A=ci-key-a --env SUMMARY_PATH=g7-k6.json perf/carga_pagos.js
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: pruebas-dinamicas, path: "g4-newman.json\ng6-zap/\ng7-k6.json" }
+
+  # ---------------------------------------------------------------- Etapa 3
+  desplegar:
+    name: Despliegue en AWS (solo si todo respondió 00)
+    needs: pruebas-dinamicas
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: produccion
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Publicar imagen en Amazon ECR
+        run: |
+          IMAGE=${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}
+          docker build -t $IMAGE . && docker push $IMAGE
+      - name: Actualizar el servicio en Amazon ECS (Fargate)
+        run: |
+          aws ecs update-service --cluster ${{ vars.ECS_CLUSTER }} --service ${{ vars.ECS_SERVICE }} \
+            --force-new-deployment
+          aws ecs wait services-stable --cluster ${{ vars.ECS_CLUSTER }} --services ${{ vars.ECS_SERVICE }}
+
+  # ---------------------------------------------------------------- Reporte
+  reporte:
+    name: Reporte consolidado (códigos 00 / 05)
+    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio, pruebas-dinamicas]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resumen de compuertas
+        run: |
+          code() { [ "$1" = "success" ] && echo "00 Aprobada" || echo "05 Rechazada ($1)"; }
+          {
+            echo "## Código 00 — resultado de compuertas"
+            echo "| Compuerta | Código |"
+            echo "|---|---|"
+            echo "| G1 Pruebas + cobertura | $(code ${{ needs.g1-pruebas.result }}) |"
+            echo "| G2 SAST | $(code ${{ needs.g2-sast.result }}) |"
+            echo "| G3 SCA + SBOM | $(code ${{ needs.g3-sca.result }}) |"
+            echo "| G5 Seguridad de negocio | $(code ${{ needs.g5-seguridad-negocio.result }}) |"
+            echo "| G4 · G6 · G7 Contrato, DAST, rendimiento | $(code ${{ needs.pruebas-dinamicas.result }}) |"
+          } >> "$GITHUB_STEP_SUMMARY"

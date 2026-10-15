@@ -1,0 +1,991 @@
+{
+  "info": {
+    "name": "Código 00 — Pruebas de contrato",
+    "description": "Compuerta G4: valida contrato, códigos de respuesta y reglas de negocio de la API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "apiKeyA",
+      "value": ""
+    },
+    {
+      "key": "apiKeyB",
+      "value": ""
+    },
+    {
+      "key": "expYear",
+      "value": "2030"
+    },
+    {
+      "key": "txSchema",
+      "value": "{\"type\": \"object\", \"required\": [\"transaction_id\", \"type\", \"response_code\", \"response_message\", \"approved\", \"status\", \"amount\", \"currency\", \"created_at\"], \"properties\": {\"transaction_id\": {\"type\": \"string\", \"pattern\": \"^[0-9a-f-]{36}$\"}, \"type\": {\"enum\": [\"AUTHORIZATION\", \"REVERSAL\"]}, \"response_code\": {\"type\": \"string\", \"pattern\": \"^[0-9]{2}$\"}, \"response_message\": {\"type\": \"string\"}, \"approved\": {\"type\": \"boolean\"}, \"status\": {\"enum\": [\"APPROVED\", \"DECLINED\", \"REVERSED\"]}, \"amount\": {\"type\": \"string\"}, \"currency\": {\"enum\": [\"COP\", \"USD\"]}, \"masked_pan\": {\"type\": [\"string\", \"null\"], \"pattern\": \"^[0-9]{6}\\\\*+[0-9]{4}$\"}, \"auth_code\": {\"type\": [\"string\", \"null\"]}, \"created_at\": {\"type\": \"string\"}}}"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Salud del servicio",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Autorización aprobada (00)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111111\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"150000.00\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 00', () => pm.expect(pm.response.json().response_code).to.eql('00'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));",
+              "const r = pm.response.json();",
+              "pm.test('Código de autorización de 6 dígitos', () => pm.expect(r.auth_code).to.match(/^\\d{6}$/));",
+              "pm.test('PAN enmascarado', () => pm.expect(r.masked_pan).to.eql('411111******1111'));",
+              "pm.collectionVariables.set('txId', r.transaction_id);",
+              "pm.collectionVariables.set('fixedStan', r.stan);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 STAN duplicado (94)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111111\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"150000.00\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{fixedStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 94', () => pm.expect(pm.response.json().response_code).to.eql('94'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Fondos insuficientes (51)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4000000000009995\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"150000.00\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 51', () => pm.expect(pm.response.json().response_code).to.eql('51'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 No aprobada por emisor (05)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4000000000000002\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"150000.00\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 05', () => pm.expect(pm.response.json().response_code).to.eql('05'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Tarjeta vencida (54)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111111\",\n  \"exp_month\": 12,\n  \"exp_year\": 2020,\n  \"amount\": \"150000.00\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 54', () => pm.expect(pm.response.json().response_code).to.eql('54'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Número de tarjeta inválido (14)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111112\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"150000.00\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 14', () => pm.expect(pm.response.json().response_code).to.eql('14'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Monto inválido (13)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111111\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"0\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 13', () => pm.expect(pm.response.json().response_code).to.eql('13'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Excede el tope (61)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111111\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"10000000.01\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 61', () => pm.expect(pm.response.json().response_code).to.eql('61'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Consulta propia",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/transactions/{{txId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "transactions",
+            "{{txId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('Es la misma transacción', () => pm.expect(pm.response.json().transaction_id).to.eql(pm.collectionVariables.get('txId')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Consulta de otro comercio (BOLA)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyB}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/transactions/{{txId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "transactions",
+            "{{txId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 404 para transacción ajena', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Reverso con monto distinto (64)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/reversals",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "reversals"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_transaction_id\": \"{{txId}}\",\n  \"amount\": \"1.00\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 64', () => pm.expect(pm.response.json().response_code).to.eql('64'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Reverso aprobado (00)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/reversals",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "reversals"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_transaction_id\": \"{{txId}}\",\n  \"amount\": \"150000.00\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 00', () => pm.expect(pm.response.json().response_code).to.eql('00'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));",
+              "pm.test('Tipo REVERSAL', () => pm.expect(pm.response.json().type).to.eql('REVERSAL'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Reverso doble (12)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/reversals",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "reversals"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"original_transaction_id\": \"{{txId}}\",\n  \"amount\": \"150000.00\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('Código de respuesta 12', () => pm.expect(pm.response.json().response_code).to.eql('12'));",
+              "pm.test('Cumple el contrato', () => pm.response.to.have.jsonSchema(pm.collectionVariables.get('txSchema') ? JSON.parse(pm.collectionVariables.get('txSchema')) : {}));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Estado REVERSED tras el reverso",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/transactions/{{txId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "transactions",
+            "{{txId}}"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('Estado REVERSED', () => pm.expect(pm.response.json().status).to.eql('REVERSED'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 Sin llave de API (401)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111111\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"150000.00\",\n  \"currency\": \"COP\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 Moneda no soportada (422)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-API-Key",
+            "value": "{{apiKeyA}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/v1/authorizations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "authorizations"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"card_number\": \"4111111111111111\",\n  \"exp_month\": 12,\n  \"exp_year\": {{expYear}},\n  \"amount\": \"150000.00\",\n  \"currency\": \"EUR\",\n  \"stan\": \"{{$randomStan}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('$randomStan', String(Math.floor(100000 + Math.random() * 900000)));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Tiempo de respuesta < 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));",
+              "pm.test('Cabeceras de seguridad presentes', () => {",
+              "  ['X-Content-Type-Options','X-Frame-Options','Content-Security-Policy','Cache-Control']",
+              "    .forEach(h => pm.response.to.have.header(h));",
+              "});",
+              "pm.test('No expone el PAN completo', () => pm.expect(pm.response.text()).to.not.include('4111111111111111'));",
+              "pm.test('HTTP 422', () => pm.response.to.have.status(422));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

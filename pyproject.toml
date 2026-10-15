@@ -1,0 +1,22 @@
+[project]
+name = "codigo-00"
+version = "1.0.0"
+description = "Compuertas automatizadas de calidad y seguridad para la entrega continua de software de pagos"
+authors = [{ name = "Leyner Perea Palma" }]
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["security: pruebas de seguridad de la lógica de negocio (compuerta G5)"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "venv"]

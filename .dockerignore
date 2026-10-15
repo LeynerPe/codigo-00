@@ -1,0 +1,11 @@
+.git
+tests
+reports
+demo
+docs
+perf
+postman
+zap
+pipeline
+*.db
+__pycache__
