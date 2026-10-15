@@ -78,10 +78,26 @@ jobs:
         if: always()
         with: { name: g5-seguridad, path: g5-junit.xml }
 
+  g8-infraestructura:
+    name: G8 · Infraestructura como código (cfn-lint + Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - run: pip install cfn-lint checkov
+      - run: cfn-lint infra/codigo00-infra.yaml
+      - run: >
+          checkov -d . --framework cloudformation dockerfile github_actions
+          --skip-download -o cli -o json --output-file-path console,g8-checkov.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: g8-infraestructura, path: g8-checkov.json }
+
   # ---------------------------------------------------------------- Etapa 2
   pruebas-dinamicas:
     name: G4 · G6 · G7 · Contrato, DAST y rendimiento sobre el servicio
-    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio]
+    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio, g8-infraestructura]
     runs-on: ubuntu-latest
     env:
       BASE_URL: http://127.0.0.1:8000
@@ -134,22 +150,31 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ vars.AWS_REGION }}
+      - name: Crear la infraestructura base si aún no existe
+        run: |
+          if ! aws cloudformation describe-stacks --stack-name codigo00 >/dev/null 2>&1; then
+            aws cloudformation deploy --stack-name codigo00 --template-file infra/codigo00-infra.yaml \
+              --parameter-overrides ImageUri=public.ecr.aws/docker/library/python:3.11-slim DesiredCount=0 \
+                LabRoleArn=${{ vars.LAB_ROLE_ARN }} CertificateArn=${{ vars.CERTIFICATE_ARN }}
+          fi
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
-      - name: Publicar imagen en Amazon ECR
+      - name: Publicar la imagen en Amazon ECR (etiqueta inmutable = SHA del commit)
         run: |
-          IMAGE=${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}
-          docker build -t $IMAGE . && docker push $IMAGE
-      - name: Actualizar el servicio en Amazon ECS (Fargate)
+          IMAGE=${{ steps.ecr.outputs.registry }}/codigo00:${{ github.sha }}
+          docker build -t "$IMAGE" . && docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Desplegar la nueva versión con CloudFormation
         run: |
-          aws ecs update-service --cluster ${{ vars.ECS_CLUSTER }} --service ${{ vars.ECS_SERVICE }} \
-            --force-new-deployment
-          aws ecs wait services-stable --cluster ${{ vars.ECS_CLUSTER }} --services ${{ vars.ECS_SERVICE }}
+          aws cloudformation deploy --stack-name codigo00 --template-file infra/codigo00-infra.yaml \
+            --parameter-overrides ImageUri="$IMAGE" DesiredCount=2 \
+              LabRoleArn=${{ vars.LAB_ROLE_ARN }} CertificateArn=${{ vars.CERTIFICATE_ARN }} \
+            --no-fail-on-empty-changeset
 
   # ---------------------------------------------------------------- Reporte
   reporte:
     name: Reporte consolidado (códigos 00 / 05)
-    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio, pruebas-dinamicas]
+    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio, g8-infraestructura, pruebas-dinamicas]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -164,5 +189,6 @@ jobs:
             echo "| G2 SAST | $(code ${{ needs.g2-sast.result }}) |"
             echo "| G3 SCA + SBOM | $(code ${{ needs.g3-sca.result }}) |"
             echo "| G5 Seguridad de negocio | $(code ${{ needs.g5-seguridad-negocio.result }}) |"
+            echo "| G8 Infraestructura como código | $(code ${{ needs.g8-infraestructura.result }}) |"
             echo "| G4 · G6 · G7 Contrato, DAST, rendimiento | $(code ${{ needs.pruebas-dinamicas.result }}) |"
           } >> "$GITHUB_STEP_SUMMARY"

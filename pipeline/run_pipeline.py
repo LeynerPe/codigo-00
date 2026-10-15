@@ -9,7 +9,7 @@ no lo cumple. El cambio solo queda listo para desplegar si todas responden 00.
 Uso:
     python pipeline/run_pipeline.py --src . --out reports/run-01 --scenario limpio
 
-Variables de entorno opcionales: PYTHON_BIN, NEWMAN_BIN, K6_BIN, ZAP_SH.
+Variables de entorno opcionales: PYTHON_BIN, NEWMAN_BIN, K6_BIN, ZAP_SH, CHECKOV_BIN, CFNLINT_BIN.
 """
 
 from __future__ import annotations
@@ -32,6 +32,8 @@ BIN_DIR = Path(PY).parent
 NEWMAN = os.environ.get("NEWMAN_BIN", "newman")
 K6 = os.environ.get("K6_BIN", "k6")
 ZAP = os.environ.get("ZAP_SH", "zap.sh")
+CHECKOV = os.environ.get("CHECKOV_BIN", "checkov")
+CFNLINT = os.environ.get("CFNLINT_BIN", "cfn-lint")
 
 COVERAGE_MIN = 85          # G1: cobertura mínima de líneas y ramas (%)
 SAST_BLOCKING = {"MEDIUM", "HIGH"}   # G2: severidades que bloquean
@@ -121,6 +123,31 @@ def gate_sca(src: Path, out: Path) -> dict:
                         "sbom_components": components,
                         "vulnerable_packages": sorted({v["package"] for v in unique})},
             "findings": unique, "log": log + log2}
+
+
+def gate_iac(src: Path, out: Path) -> dict:
+    """G8: la infraestructura como código, el Dockerfile y el flujo de CI deben pasar cfn-lint y Checkov."""
+    lint_report = out / "g8-cfn-lint.json"
+    code_l, log_l, secs_l = run([CFNLINT, "-f", "json", "infra/codigo00-infra.yaml"], src)
+    lint_report.write_text(log_l if log_l.strip().startswith("[") else "[]", encoding="utf-8")
+    lint = json.loads(lint_report.read_text())
+    lint_errors = [m for m in lint if m.get("Level") == "Error"]
+    ck_report = out / "g8-checkov.json"
+    _, log_c, secs_c = run([CHECKOV, "-d", ".", "--framework", "cloudformation", "dockerfile", "github_actions",
+                            "--skip-download", "--quiet", "-o", "json"], src)
+    start = log_c.find("[") if log_c.lstrip().startswith("[") else log_c.find("{")
+    data = json.loads(log_c[start:]) if start >= 0 else []
+    data = data if isinstance(data, list) else [data]
+    ck_report.write_text(json.dumps(data, indent=1), encoding="utf-8")
+    passed = sum(r["summary"]["passed"] for r in data)
+    failed = sum(r["summary"]["failed"] for r in data)
+    skipped = sum(r["summary"]["skipped"] for r in data)
+    findings = [{"id": f["check_id"], "name": f["check_name"], "resource": f["resource"], "framework": r["check_type"]}
+                for r in data for f in r.get("results", {}).get("failed_checks", [])]
+    return {"ok": not lint_errors and failed == 0, "seconds": secs_l + secs_c,
+            "metrics": {"cfn_lint_errors": len(lint_errors), "checkov_passed": passed, "checkov_failed": failed,
+                        "checkov_skipped": skipped, "failed_ids": sorted({f["id"] for f in findings})},
+            "findings": findings, "log": log_l[-2000:]}
 
 
 def gate_security_tests(src: Path, out: Path) -> dict:
@@ -248,6 +275,7 @@ GATES = [
     ("G2", "Análisis estático de seguridad (SAST, Bandit)", "estatica"),
     ("G3", "Análisis de dependencias (SCA, pip-audit) + SBOM", "estatica"),
     ("G5", "Pruebas de seguridad de la lógica de negocio", "estatica"),
+    ("G8", "Seguridad de la infraestructura como código (cfn-lint + Checkov)", "estatica"),
     ("G4", "Pruebas de contrato de la API (Newman)", "dinamica"),
     ("G6", "Análisis dinámico de seguridad (DAST, OWASP ZAP)", "dinamica"),
     ("G7", "Pruebas de rendimiento (k6)", "dinamica"),
@@ -284,6 +312,8 @@ def main() -> int:
                 result = gate_sca(src, out)
             elif gate_id == "G5":
                 result = gate_security_tests(src, out)
+            elif gate_id == "G8":
+                result = gate_iac(src, out)
             elif gate_id == "G4":
                 result = gate_contract(src, out, service.url)
             elif gate_id == "G6":
@@ -336,6 +366,8 @@ def tool_versions() -> dict:
         "newman": version([NEWMAN, "--version"]),
         "k6": version([K6, "version"]),
         "zap": "2.17.0",
+        "checkov": version([CHECKOV, "--version"]),
+        "cfn-lint": version([CFNLINT, "--version"]),
     }
 
 

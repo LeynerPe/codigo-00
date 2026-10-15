@@ -8,6 +8,11 @@ Escenarios:
               V3 PAN completo en los registros de auditoría,
               V4 dependencia con vulnerabilidades conocidas y cliente HTTP
                  sin verificación TLS ni tiempo de espera.
+  infraestructura  Cuatro errores de configuración en la plantilla de AWS:
+              I1 acceso SSH abierto a internet en las tareas,
+              I2 balanceador con listener HTTP sin TLS,
+              I3 repositorio ECR sin escaneo, con etiquetas mutables y sin KMS,
+              I4 grupo de registros de la API sin retención ni cifrado.
   funcional   Dos defectos funcionales de negocio:
               F1 error de límite en el tope de monto (> cambia a >=),
               F2 el reverso deja de validar que el monto coincida con el original.
@@ -89,7 +94,37 @@ def funcional(dst: Path) -> None:
 ''', "")  # F2
 
 
-SCENARIOS = {"vulnerable": vulnerable, "funcional": funcional}
+def infraestructura(dst: Path) -> None:
+    tpl = dst / "infra" / "codigo00-infra.yaml"
+    # I1 — SSH abierto a internet en el grupo de seguridad de las tareas
+    replace(tpl, """      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, SourceSecurityGroupId: !Ref AlbSecurityGroup,
+            Description: Trafico del balanceador a la API }""",
+            """      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, SourceSecurityGroupId: !Ref AlbSecurityGroup,
+            Description: Trafico del balanceador a la API }
+        - { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: 0.0.0.0/0, Description: Soporte remoto }""")
+    # I2 — listener HTTP sin TLS y puerto 80 abierto
+    replace(tpl, """        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: HTTPS de los comercios }""",
+            """        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: HTTP de los comercios }""")
+    replace(tpl, """      Protocol: HTTPS
+      Port: 443
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates: [{ CertificateArn: !Ref CertificateArn }]""", """      Protocol: HTTP
+      Port: 80""")
+    # I3 — repositorio de imágenes sin escaneo, mutable y sin KMS
+    replace(tpl, """      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: { ScanOnPush: true }
+      EncryptionConfiguration: { EncryptionType: KMS, KmsKey: !GetAtt Codigo00Key.Arn }""",
+            """      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration: { ScanOnPush: false }""")
+    # I4 — registros de la API sin retención ni cifrado
+    replace(tpl, """      LogGroupName: /codigo00/api
+      RetentionInDays: 365
+      KmsKeyId: !GetAtt Codigo00Key.Arn""", """      LogGroupName: /codigo00/api""")
+
+
+SCENARIOS = {"vulnerable": vulnerable, "funcional": funcional, "infraestructura": infraestructura}
 
 
 def main() -> None:
