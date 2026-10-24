@@ -1,0 +1,29 @@
+[
+    {
+        "Filename": "infra/codigo00-infra.yaml",
+        "Id": "34367f10-451e-a6a4-4a65-3859d255b6bd",
+        "Level": "Warning",
+        "Location": {
+            "End": {
+                "ColumnNumber": 17,
+                "LineNumber": 15
+            },
+            "Path": [
+                "Parameters",
+                "CertificateArn"
+            ],
+            "Start": {
+                "ColumnNumber": 3,
+                "LineNumber": 15
+            }
+        },
+        "Message": "Parameter CertificateArn not used.",
+        "ParentId": null,
+        "Rule": {
+            "Description": "Making sure the parameters defined are used",
+            "Id": "W2001",
+            "ShortDescription": "Check if Parameters are Used",
+            "Source": "https://github.com/aws-cloudformation/cfn-lint"
+        }
+    }
+]

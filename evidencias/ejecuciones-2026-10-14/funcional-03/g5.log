@@ -1,0 +1,21 @@
+...........F...................                                          [100%]
+=================================== FAILURES ===================================
+_____________________ test_partial_reversal_is_not_allowed _____________________
+
+client = <starlette.testclient.TestClient object at 0x7f31e7bbc950>
+authorize = <function authorize.<locals>._authorize at 0x7f31e7d41120>
+headers_a = {'X-API-Key': 'test-comercio-a-7f3c'}
+
+    def test_partial_reversal_is_not_allowed(client, authorize, headers_a):
+        tx = authorize(amount="500000.00").json()
+        body = {"original_transaction_id": tx["transaction_id"], "amount": "1.00"}
+>       assert client.post("/v1/reversals", json=body, headers=headers_a).json()["response_code"] == "64"
+E       AssertionError: assert '00' == '64'
+E         
+E         - 64
+E         + 00
+
+tests/security/test_security.py:54: AssertionError
+=========================== short test summary info ============================
+FAILED tests/security/test_security.py::test_partial_reversal_is_not_allowed
+1 failed, 30 passed in 0.46s

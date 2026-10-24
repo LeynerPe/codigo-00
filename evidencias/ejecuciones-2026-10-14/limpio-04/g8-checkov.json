@@ -1,0 +1,44 @@
+[
+ {
+  "check_type": "dockerfile",
+  "results": {
+   "failed_checks": []
+  },
+  "summary": {
+   "passed": 48,
+   "failed": 0,
+   "skipped": 0,
+   "parsing_errors": 0,
+   "resource_count": 1,
+   "checkov_version": "3.3.29"
+  }
+ },
+ {
+  "check_type": "github_actions",
+  "results": {
+   "failed_checks": []
+  },
+  "summary": {
+   "passed": 212,
+   "failed": 0,
+   "skipped": 0,
+   "parsing_errors": 0,
+   "resource_count": 0,
+   "checkov_version": "3.3.29"
+  }
+ },
+ {
+  "check_type": "cloudformation",
+  "results": {
+   "failed_checks": []
+  },
+  "summary": {
+   "passed": 37,
+   "failed": 0,
+   "skipped": 1,
+   "parsing_errors": 0,
+   "resource_count": 38,
+   "checkov_version": "3.3.29"
+  }
+ }
+]

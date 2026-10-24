@@ -1,0 +1,66 @@
+.......................F......F....................F..........           [100%]
+=================================== FAILURES ===================================
+_______ test_evaluate_authorization[4111111111111111-amount6-12-2030-00] _______
+
+pan = '4111111111111111', amount = Decimal('10000000.00'), month = 12
+year = 2030, expected = <ResponseCode.APPROVED: '00'>
+
+    @pytest.mark.parametrize(
+        "pan,amount,month,year,expected",
+        [
+            ("4111111111111111", Decimal("1000"), 12, 2030, ResponseCode.APPROVED),
+            ("4111111111111112", Decimal("1000"), 12, 2030, ResponseCode.INVALID_CARD_NUMBER),
+            ("4111111111111111", Decimal("0"), 12, 2030, ResponseCode.INVALID_AMOUNT),
+            ("4111111111111111", Decimal("-5"), 12, 2030, ResponseCode.INVALID_AMOUNT),
+            ("4111111111111111", Decimal("10.001"), 12, 2030, ResponseCode.INVALID_AMOUNT),
+            ("4111111111111111", Decimal("10000000.01"), 12, 2030, ResponseCode.EXCEEDS_AMOUNT_LIMIT),
+            ("4111111111111111", Decimal("10000000.00"), 12, 2030, ResponseCode.APPROVED),
+            ("4111111111111111", Decimal("1000"), 1, 2020, ResponseCode.EXPIRED_CARD),
+            ("4000000000000002", Decimal("1000"), 12, 2030, ResponseCode.DO_NOT_HONOR),
+            ("4000000000009995", Decimal("1000"), 12, 2030, ResponseCode.INSUFFICIENT_FUNDS),
+        ],
+    )
+    def test_evaluate_authorization(pan, amount, month, year, expected):
+>       assert rules.evaluate_authorization(pan, month, year, amount, TODAY) is expected
+E       AssertionError: assert <ResponseCode.EXCEEDS_AMOUNT_LIMIT: '61'> is <ResponseCode.APPROVED: '00'>
+E        +  where <ResponseCode.EXCEEDS_AMOUNT_LIMIT: '61'> = <function evaluate_authorization at 0x7efc6c3d9940>('4111111111111111', 12, 2030, Decimal('10000000.00'), datetime.date(2026, 10, 14))
+E        +    where <function evaluate_authorization at 0x7efc6c3d9940> = rules.evaluate_authorization
+
+tests/unit/test_rules.py:66: AssertionError
+________________________ test_reversal_amount_mismatch _________________________
+
+    def test_reversal_amount_mismatch():
+>       assert rules.evaluate_reversal(_original(), Decimal("999.99")) is ResponseCode.ORIGINAL_AMOUNT_INCORRECT
+E       AssertionError: assert <ResponseCode.APPROVED: '00'> is <ResponseCode.ORIGINAL_AMOUNT_INCORRECT: '64'>
+E        +  where <ResponseCode.APPROVED: '00'> = <function evaluate_reversal at 0x7efc6c3d99e0>({'response_code': '00', 'status': 'APPROVED', 'amount': '1000.00'}, Decimal('999.99'))
+E        +    where <function evaluate_reversal at 0x7efc6c3d99e0> = rules.evaluate_reversal
+E        +    and   {'response_code': '00', 'status': 'APPROVED', 'amount': '1000.00'} = _original()
+E        +    and   Decimal('999.99') = Decimal('999.99')
+E        +  and   <ResponseCode.ORIGINAL_AMOUNT_INCORRECT: '64'> = ResponseCode.ORIGINAL_AMOUNT_INCORRECT
+
+tests/unit/test_rules.py:89: AssertionError
+_______________________ test_reversal_amount_must_match ________________________
+
+client = <starlette.testclient.TestClient object at 0x7efc6af6db10>
+authorize = <function authorize.<locals>._authorize at 0x7efc6c0f1760>
+headers_a = {'X-API-Key': 'test-comercio-a-7f3c'}
+
+    def test_reversal_amount_must_match(client, authorize, headers_a):
+        tx = authorize().json()
+        body = {"original_transaction_id": tx["transaction_id"], "amount": "149999.99"}
+>       assert client.post("/v1/reversals", json=body, headers=headers_a).json()["response_code"] == "64"
+E       AssertionError: assert '00' == '64'
+E         
+E         - 64
+E         + 00
+
+tests/functional/test_flows.py:98: AssertionError
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.11.15-final-0 _______________
+
+Coverage JSON written to file /home/claude/runs/official/funcional-01/g1-coverage.json
+=========================== short test summary info ============================
+FAILED tests/unit/test_rules.py::test_evaluate_authorization[4111111111111111-amount6-12-2030-00]
+FAILED tests/unit/test_rules.py::test_reversal_amount_mismatch - AssertionErr...
+FAILED tests/functional/test_flows.py::test_reversal_amount_must_match - Asse...
+3 failed, 59 passed in 0.90s

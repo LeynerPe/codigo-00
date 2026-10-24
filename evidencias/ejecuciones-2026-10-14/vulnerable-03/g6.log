@@ -1,0 +1,54 @@
+Found Java version 21.0.10
+Available memory: 8029 MB
+Using JVM args: -Xmx2007m
+548 [main] INFO  org.parosproxy.paros.Constant - Copying default configuration to /home/claude/runs/official/vulnerable-03/.zaphome/config.xml
+661 [main] INFO  org.parosproxy.paros.Constant - Creating directory /home/claude/runs/official/vulnerable-03/.zaphome/session
+664 [main] INFO  org.parosproxy.paros.Constant - Creating directory /home/claude/runs/official/vulnerable-03/.zaphome/dirbuster
+664 [main] INFO  org.parosproxy.paros.Constant - Creating directory /home/claude/runs/official/vulnerable-03/.zaphome/fuzzers
+664 [main] INFO  org.parosproxy.paros.Constant - Creating directory /home/claude/runs/official/vulnerable-03/.zaphome/plugin
+Job replacer set deleteAllRules = true
+Job replacer set description = Llave de API del comercio de prueba
+Job replacer set url = 
+Job replacer set matchType = req_header
+Job replacer set matchString = X-API-Key
+Job replacer set matchRegex = false
+Job replacer set replacementString = pipeline-key-a-31f0
+Job replacer set tokenProcessing = false
+Job openapi set apiUrl = http://127.0.0.1:57089/openapi.json
+Job openapi set targetUrl = http://127.0.0.1:57089
+Job passiveScan-wait set maxDuration = 2
+Job activeScan set context = codigo00
+Job activeScan set maxScanDurationInMins = 10
+Job activeScan set maxRuleDurationInMins = 2
+Job activeScan set threadPerHost = 4
+Job activeScan set defaultStrength = medium
+Job activeScan set defaultThreshold = medium
+Job report set template = traditional-json
+Job report set reportDir = /home/claude/runs/official/vulnerable-03/g6-zap
+Job report set reportFile = zap-report.json
+Job report set template = traditional-html
+Job report set reportDir = /home/claude/runs/official/vulnerable-03/g6-zap
+Job report set reportFile = zap-report.html
+Job report set reportTitle = Código 00 — Reporte DAST
+Job replacer set deleteAllRules = true
+Job replacer started
+Existing Replace rules deleted
+Job replacer finished, time taken: 00:00:00
+Job openapi started
+Job openapi added 5 URLs
+Job openapi finished, time taken: 00:00:00
+Job passiveScan-wait started
+Job passiveScan-wait finished, time taken: 00:00:01
+Job activeScan started
+Job activeScan set default strength to MEDIUM
+Job activeScan set default threshold to MEDIUM
+Job activeScan finished, time taken: 00:00:12
+Job report started
+Job report generated report /home/claude/runs/official/vulnerable-03/g6-zap/zap-report.json
+Job report finished, time taken: 00:00:00
+Job report started
+Job report generated report /home/claude/runs/official/vulnerable-03/g6-zap/zap-report.html
+Job report finished, time taken: 00:00:00
+Automation plan succeeded!
+Picked up JAVA_TOOL_OPTIONS: -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts -Djavax.net.ssl.trustStoreType=JKS -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=42453 -Dhttp.nonProxyHosts=localhost|127.0.0.1|::1|127.*|0.*|::|169.254.*|api.anthropic.com|api-staging.anthropic.com|api-pr-preview.anthropic.com|mcp-proxy.anthropic.com|mcp-proxy-staging.anthropic.com|registry.npmjs.org|jsr.io|npm.jsr.io|pypi.org|files.pythonhosted.org|index.crates.io|proxy.golang.org|host.docker.internal|10.*|172.16.*|172.17.*|172.18.*|172.19.*|172.20.*|172.21.*|172.22.*|172.23.*|172.24.*|172.25.*|172.26.*|172.27.*|172.28.*|172.29.*|172.30.*|172.31.*|192.168.*|100.64.0.0/10|*.svc.cluster.local|*.svc.cluster.local -Djdk.http.auth.tunneling.disabledSchemes= -Djdk.http.auth.proxying.disabledSchemes=
+No check for updates for over 3 month - add-ons may well be out of date

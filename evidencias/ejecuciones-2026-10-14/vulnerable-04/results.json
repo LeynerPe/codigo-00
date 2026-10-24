@@ -1,0 +1,361 @@
+{
+  "scenario": "vulnerable",
+  "started_at": "2026-10-15T02:45:43+00:00",
+  "total_seconds": 94.74,
+  "seconds_to_first_failure": 2.26,
+  "overall_code": "05",
+  "deploy": "Despliegue bloqueado",
+  "gates": [
+    {
+      "gate": "G1",
+      "name": "Pruebas unitarias y funcionales + cobertura",
+      "kind": "estatica",
+      "code": "00",
+      "seconds": 2.04,
+      "metrics": {
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "failed_tests": [],
+        "coverage_pct": 94.9,
+        "coverage_min": 85
+      }
+    },
+    {
+      "gate": "G2",
+      "name": "Análisis estático de seguridad (SAST, Bandit)",
+      "kind": "estatica",
+      "code": "05",
+      "seconds": 0.22,
+      "metrics": {
+        "sev_low": 1,
+        "sev_medium": 2,
+        "sev_high": 1,
+        "blocking": 3,
+        "loc": 443
+      },
+      "findings": [
+        {
+          "id": "B608",
+          "severity": "MEDIUM",
+          "confidence": "MEDIUM",
+          "file": "app/db.py",
+          "line": 78,
+          "text": "Possible SQL injection vector through string-based query construction."
+        },
+        {
+          "id": "B501",
+          "severity": "HIGH",
+          "confidence": "HIGH",
+          "file": "app/fraud.py",
+          "line": 11,
+          "text": "Call to requests with verify=False disabling SSL certificate checks, security issue."
+        },
+        {
+          "id": "B113",
+          "severity": "MEDIUM",
+          "confidence": "LOW",
+          "file": "app/fraud.py",
+          "line": 11,
+          "text": "Call to requests without timeout"
+        },
+        {
+          "id": "B105",
+          "severity": "LOW",
+          "confidence": "MEDIUM",
+          "file": "app/main.py",
+          "line": 168,
+          "text": "Possible hardcoded password: 'None'"
+        }
+      ]
+    },
+    {
+      "gate": "G3",
+      "name": "Análisis de dependencias (SCA, pip-audit) + SBOM",
+      "kind": "estatica",
+      "code": "05",
+      "seconds": 10.98,
+      "metrics": {
+        "vulnerabilities": 13,
+        "packages_audited": 18,
+        "sbom_components": 6,
+        "vulnerable_packages": [
+          "idna",
+          "requests",
+          "urllib3"
+        ]
+      },
+      "findings": [
+        {
+          "package": "requests",
+          "version": "2.25.1",
+          "id": "PYSEC-2023-74",
+          "aliases": [
+            "GHSA-j8r2-6x86-q33q",
+            "CVE-2023-32681"
+          ],
+          "fix": [
+            "2.31.0"
+          ]
+        },
+        {
+          "package": "requests",
+          "version": "2.25.1",
+          "id": "PYSEC-2026-1873",
+          "aliases": [
+            "GHSA-9wx4-h78v-vm56",
+            "CVE-2024-35195"
+          ],
+          "fix": [
+            "2.32.0"
+          ]
+        },
+        {
+          "package": "requests",
+          "version": "2.25.1",
+          "id": "PYSEC-2026-1872",
+          "aliases": [
+            "GHSA-9hjg-9r4m-mvj7",
+            "CVE-2024-47081"
+          ],
+          "fix": [
+            "2.32.4"
+          ]
+        },
+        {
+          "package": "requests",
+          "version": "2.25.1",
+          "id": "PYSEC-2026-2275",
+          "aliases": [
+            "GHSA-gc5v-m9x4-r6x2",
+            "CVE-2026-25645"
+          ],
+          "fix": [
+            "2.33.0"
+          ]
+        },
+        {
+          "package": "idna",
+          "version": "2.10",
+          "id": "PYSEC-2024-60",
+          "aliases": [
+            "CVE-2024-3651",
+            "GHSA-jjg7-2v4v-x38h"
+          ],
+          "fix": [
+            "3.7"
+          ]
+        },
+        {
+          "package": "idna",
+          "version": "2.10",
+          "id": "PYSEC-2026-215",
+          "aliases": [
+            "GHSA-65pc-fj4g-8rjx",
+            "CVE-2026-45409"
+          ],
+          "fix": [
+            "3.15"
+          ]
+        },
+        {
+          "package": "urllib3",
+          "version": "1.26.20",
+          "id": "PYSEC-2026-1999",
+          "aliases": [
+            "GHSA-pq67-6m6q-mj2v",
+            "CVE-2025-50181"
+          ],
+          "fix": [
+            "2.5.0"
+          ]
+        },
+        {
+          "package": "urllib3",
+          "version": "1.26.20",
+          "id": "PYSEC-2026-1998",
+          "aliases": [
+            "GHSA-gm62-xv2j-4w53",
+            "CVE-2025-66418"
+          ],
+          "fix": [
+            "2.6.0"
+          ]
+        },
+        {
+          "package": "urllib3",
+          "version": "1.26.20",
+          "id": "PYSEC-2026-1994",
+          "aliases": [
+            "CVE-2025-66471",
+            "GHSA-2xpw-w6gg-jr37"
+          ],
+          "fix": [
+            "2.6.0"
+          ]
+        },
+        {
+          "package": "urllib3",
+          "version": "1.26.20",
+          "id": "PYSEC-2026-1996",
+          "aliases": [
+            "GHSA-38jv-5279-wg99",
+            "CVE-2026-21441"
+          ],
+          "fix": [
+            "2.6.3"
+          ]
+        },
+        {
+          "package": "urllib3",
+          "version": "1.26.20",
+          "id": "PYSEC-2026-141",
+          "aliases": [
+            "CVE-2026-44431",
+            "GHSA-qccp-gfcp-xxvc"
+          ],
+          "fix": [
+            "2.7.0"
+          ]
+        },
+        {
+          "package": "urllib3",
+          "version": "1.26.20",
+          "id": "PYSEC-2026-4177",
+          "aliases": [
+            "GHSA-vxq7-64xx-v4gw",
+            "CVE-2026-97689"
+          ],
+          "fix": [
+            "2.8.0"
+          ]
+        },
+        {
+          "package": "urllib3",
+          "version": "1.26.20",
+          "id": "PYSEC-2026-4175",
+          "aliases": [
+            "GHSA-8988-9cw3-xx77",
+            "CVE-2026-97687"
+          ],
+          "fix": [
+            "2.8.0"
+          ]
+        }
+      ]
+    },
+    {
+      "gate": "G5",
+      "name": "Pruebas de seguridad de la lógica de negocio",
+      "kind": "estatica",
+      "code": "05",
+      "seconds": 1.21,
+      "metrics": {
+        "total": 31,
+        "passed": 27,
+        "failed": 4,
+        "failed_tests": [
+          "tests.security.test_security::test_merchant_cannot_reverse_foreign_transaction",
+          "tests.security.test_security::test_full_pan_never_logged",
+          "tests.security.test_security::test_sql_injection_in_path[' OR '1'='1]",
+          "tests.security.test_security::test_sql_injection_in_path[x' UNION SELECT * FROM transactions--]"
+        ]
+      }
+    },
+    {
+      "gate": "G8",
+      "name": "Seguridad de la infraestructura como código (cfn-lint + Checkov)",
+      "kind": "estatica",
+      "code": "00",
+      "seconds": 3.87,
+      "metrics": {
+        "cfn_lint_errors": 0,
+        "checkov_passed": 297,
+        "checkov_failed": 0,
+        "checkov_skipped": 1,
+        "failed_ids": []
+      },
+      "findings": []
+    },
+    {
+      "gate": "G4",
+      "name": "Pruebas de contrato de la API (Newman)",
+      "kind": "dinamica",
+      "code": "00",
+      "seconds": 1.37,
+      "metrics": {
+        "requests": 17,
+        "assertions": 95,
+        "assertions_failed": 0,
+        "failed": []
+      }
+    },
+    {
+      "gate": "G6",
+      "name": "Análisis dinámico de seguridad (DAST, OWASP ZAP)",
+      "kind": "dinamica",
+      "code": "05",
+      "seconds": 27.56,
+      "metrics": {
+        "alerts_info": 1,
+        "alerts_low": 0,
+        "alerts_medium": 0,
+        "alerts_high": 1,
+        "blocking": 1,
+        "requests_sent": 6206
+      },
+      "findings": [
+        {
+          "name": "SQL Injection",
+          "risk": 3,
+          "riskdesc": "High (Low)",
+          "count": 2,
+          "pluginid": "40018",
+          "uris": [
+            "http://127.0.0.1:41839/v1/transactions/'"
+          ]
+        },
+        {
+          "name": "User Agent Fuzzer",
+          "risk": 0,
+          "riskdesc": "Informational (Medium)",
+          "count": 3,
+          "pluginid": "10104",
+          "uris": [
+            "http://127.0.0.1:41839/v1/authorizations",
+            "http://127.0.0.1:41839/v1/reversals"
+          ]
+        }
+      ]
+    },
+    {
+      "gate": "G7",
+      "name": "Pruebas de rendimiento (k6)",
+      "kind": "dinamica",
+      "code": "00",
+      "seconds": 46.6,
+      "metrics": {
+        "requests": 6958,
+        "rps": 154.1,
+        "p95_ms": 17.11,
+        "p90_ms": 13.36,
+        "avg_ms": 7.21,
+        "max_ms": 105.0,
+        "error_rate": 0,
+        "checks_rate": 1,
+        "thresholds_ok": true
+      }
+    }
+  ],
+  "tools": {
+    "python": "3.11.15",
+    "pytest": "pytest 9.1.1",
+    "bandit": "bandit 1.9.4",
+    "pip-audit": "pip-audit 2.10.1",
+    "newman": "6.2.3",
+    "k6": "k6 v1.3.0 (commit/5870e99ae8, go1.25.1, linux/amd64)",
+    "zap": "2.17.0",
+    "checkov": "3.3.29",
+    "cfn-lint": "cfn-lint 1.57.2"
+  }
+}

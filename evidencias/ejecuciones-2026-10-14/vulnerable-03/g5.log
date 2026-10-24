@@ -1,0 +1,83 @@
+....F...........F.F..F.........                                          [100%]
+=================================== FAILURES ===================================
+_______________ test_merchant_cannot_reverse_foreign_transaction _______________
+
+client = <starlette.testclient.TestClient object at 0x7fc7a167e490>
+authorize = <function authorize.<locals>._authorize at 0x7fc7a186afc0>
+headers_a = {'X-API-Key': 'test-comercio-a-7f3c'}
+headers_b = {'X-API-Key': 'test-comercio-b-91d2'}
+
+    def test_merchant_cannot_reverse_foreign_transaction(client, authorize, headers_a, headers_b):
+        tx = authorize().json()
+        body = {"original_transaction_id": tx["transaction_id"], "amount": "150000.00"}
+        attack = client.post("/v1/reversals", json=body, headers=headers_b).json()
+>       assert attack["response_code"] == "25"
+E       AssertionError: assert '00' == '25'
+E         
+E         - 25
+E         + 00
+
+tests/security/test_security.py:36: AssertionError
+__________________________ test_full_pan_never_logged __________________________
+
+authorize = <function authorize.<locals>._authorize at 0x7fc7a1769080>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7fc7a0588b90>
+
+    def test_full_pan_never_logged(authorize, caplog):
+        with caplog.at_level(logging.DEBUG):
+            authorize()
+>       assert APPROVED_PAN not in caplog.text
+E       assert '4111111111111111' not in 'DEBUG    as...1 Created"\n'
+E         
+E         '4111111111111111' is contained here:
+E           CIO_A pan=4111111111111111 codigo=00
+E           INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/v1/authorizations "HTTP/1.1 201 Created"
+
+tests/security/test_security.py:76: AssertionError
+------------------------------ Captured log call -------------------------------
+DEBUG    asyncio:selector_events.py:54 Using selector: EpollSelector
+INFO     codigo00:main.py:139 Autorización 543416c8-e64a-4d42-8b70-1802b8b6b4ea comercio=COMERCIO_A pan=4111111111111111 codigo=00
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/v1/authorizations "HTTP/1.1 201 Created"
+___________________ test_sql_injection_in_path[' OR '1'='1] ____________________
+
+client = <starlette.testclient.TestClient object at 0x7fc7a1767b10>
+authorize = <function authorize.<locals>._authorize at 0x7fc7a168c860>
+headers_a = {'X-API-Key': 'test-comercio-a-7f3c'}, payload = "' OR '1'='1"
+
+    @pytest.mark.parametrize(
+        "payload",
+        ["' OR '1'='1", "1; DROP TABLE transactions--", "\" OR 1=1 --", "x' UNION SELECT * FROM transactions--"],
+    )
+    def test_sql_injection_in_path(client, authorize, headers_a, payload):
+        authorize()
+        response = client.get(f"/v1/transactions/{payload}", headers=headers_a)
+>       assert response.status_code == 404
+E       assert 200 == 404
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/security/test_security.py:95: AssertionError
+______ test_sql_injection_in_path[x' UNION SELECT * FROM transactions--] _______
+
+client = <starlette.testclient.TestClient object at 0x7fc7a16a7050>
+authorize = <function authorize.<locals>._authorize at 0x7fc7a16e5120>
+headers_a = {'X-API-Key': 'test-comercio-a-7f3c'}
+payload = "x' UNION SELECT * FROM transactions--"
+
+    @pytest.mark.parametrize(
+        "payload",
+        ["' OR '1'='1", "1; DROP TABLE transactions--", "\" OR 1=1 --", "x' UNION SELECT * FROM transactions--"],
+    )
+    def test_sql_injection_in_path(client, authorize, headers_a, payload):
+        authorize()
+        response = client.get(f"/v1/transactions/{payload}", headers=headers_a)
+>       assert response.status_code == 404
+E       assert 200 == 404
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests/security/test_security.py:95: AssertionError
+=========================== short test summary info ============================
+FAILED tests/security/test_security.py::test_merchant_cannot_reverse_foreign_transaction
+FAILED tests/security/test_security.py::test_full_pan_never_logged - assert '...
+FAILED tests/security/test_security.py::test_sql_injection_in_path[' OR '1'='1]
+FAILED tests/security/test_security.py::test_sql_injection_in_path[x' UNION SELECT * FROM transactions--]
+4 failed, 27 passed in 0.50s
