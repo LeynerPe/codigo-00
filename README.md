@@ -1,6 +1,6 @@
 # Código 00 — ni un peso sin probar
 
-**Compuertas automatizadas de calidad y seguridad para la entrega continua de software de pagos.**
+**Compuertas automatizadas de calidad y seguridad para software de pagos e infraestructura en la nube.**
 Proyecto final del Diplomado en Seguridad en DevOps (UNIMINUTO) — Leyner Perea Palma, 2026.
 
 En ISO 8583 el código de respuesta `00` significa *transacción aprobada*. Este repositorio aplica esa
@@ -18,8 +18,10 @@ Si alguna responde `05`, el despliegue se bloquea.
 | `zap/plan-dast.yaml` | Plan de automatización de OWASP ZAP (G6) |
 | `perf/carga_pagos.js` | Prueba de rendimiento con k6 (G7) |
 | `pipeline/run_pipeline.py` | Ejecutor local de todas las compuertas con reporte consolidado |
+| `infra/codigo00-infra.yaml` | Infraestructura en AWS como código (CloudFormation): VPC, ECR, ECS Fargate, ALB con TLS, WAF, Secrets Manager, KMS y CloudWatch (G8) |
 | `.github/workflows/codigo00.yml` | El mismo pipeline en GitHub Actions, con despliegue en AWS |
-| `demo/inyectar.py` | Genera los escenarios con defectos inyectados (vulnerable y funcional) |
+| `demo/inyectar.py` | Genera los escenarios con defectos inyectados (`vulnerable`, `funcional` e `infraestructura`) |
+| `evidencias/` | Resultados de las 16 ejecuciones oficiales del 14 de octubre de 2026 |
 
 ## Compuertas
 
@@ -29,6 +31,7 @@ Si alguna responde `05`, el despliegue se bloquea.
 | G2 | SAST | Bandit | 0 hallazgos de severidad media o alta |
 | G3 | SCA + SBOM | pip-audit + CycloneDX | 0 vulnerabilidades conocidas |
 | G5 | Seguridad de negocio | pytest (`-m security`) | 100 % aprobadas |
+| G8 | Infraestructura como código | cfn-lint + Checkov | 0 errores de cfn-lint y 0 controles fallidos de Checkov |
 | G4 | Contrato de la API | Postman/Newman | 0 aserciones fallidas |
 | G6 | DAST | OWASP ZAP | 0 alertas de riesgo medio o alto |
 | G7 | Rendimiento | k6 | p95 < 300 ms, errores < 1 % |
@@ -46,17 +49,27 @@ uvicorn app.main:app --reload
 # Pruebas
 pytest --cov=app
 
-# Pipeline completo (requiere newman, k6 y OWASP ZAP instalados)
-export NEWMAN_BIN=newman K6_BIN=k6 ZAP_SH=/ruta/a/zap.sh
+# Pipeline completo (requiere newman, k6, OWASP ZAP, cfn-lint y Checkov instalados)
+export NEWMAN_BIN=newman K6_BIN=k6 ZAP_SH=/ruta/a/zap.sh CFNLINT_BIN=cfn-lint CHECKOV_BIN=checkov
 python pipeline/run_pipeline.py --src . --out reports/limpio --scenario limpio
 
 # Demostración: escenario con vulnerabilidades inyectadas
 python demo/inyectar.py vulnerable /tmp/codigo00-vulnerable
 python pipeline/run_pipeline.py --src /tmp/codigo00-vulnerable --out reports/vulnerable --scenario vulnerable
+
+# Demostración: plantilla de infraestructura insegura (solo G8 debe responder 05)
+python demo/inyectar.py infraestructura /tmp/codigo00-infra
+python pipeline/run_pipeline.py --src /tmp/codigo00-infra --out reports/infra --scenario infraestructura
 ```
 
 Cada ejecución deja en la carpeta `--out` el archivo `results.json`, el reporte `reporte.html` y la
-evidencia de cada herramienta (JUnit, Bandit, pip-audit, SBOM, Newman, ZAP y k6).
+evidencia de cada herramienta (JUnit, Bandit, pip-audit, SBOM, Newman, ZAP, k6, cfn-lint y Checkov).
+
+## Evidencias de la evaluación
+
+Las 16 ejecuciones oficiales (5 limpio, 5 vulnerable, 3 funcional y 3 infraestructura) se hicieron el
+14 de octubre de 2026 sobre el commit `7c3fb6f`. Sus resultados están en
+[`evidencias/ejecuciones-2026-10-14`](evidencias/ejecuciones-2026-10-14/README.md).
 
 ## Tarjetas de prueba
 
@@ -72,6 +85,7 @@ original en un reverso, 12 reverso inválido, 25 transacción original no encont
 
 ## Despliegue en AWS
 
-El job `desplegar` del workflow publica la imagen en Amazon ECR y actualiza un servicio de Amazon ECS
-(Fargate) solo cuando todas las compuertas responden 00 en la rama `main`. La preparación de la cuenta
-está en [`docs/despliegue-aws.md`](docs/despliegue-aws.md).
+El job `desplegar` del workflow publica la imagen en Amazon ECR y despliega la plantilla
+`infra/codigo00-infra.yaml` con AWS CloudFormation solo cuando todas las compuertas responden 00 en la
+rama `main`. La preparación (certificado, `LabRole` y credenciales de AWS Academy) está en
+[`docs/despliegue-aws.md`](docs/despliegue-aws.md).
