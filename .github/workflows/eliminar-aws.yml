@@ -1,0 +1,39 @@
+# Elimina la pila de AWS de Código 00 para no consumir los créditos del laboratorio.
+# Se ejecuta solo a mano: Actions → "Código 00 — eliminar despliegue en AWS" → Run workflow.
+name: Código 00 — eliminar despliegue en AWS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eliminar:
+    name: Eliminar la pila codigo00
+    runs-on: ubuntu-latest
+    environment: produccion
+    env:
+      STACK: codigo00
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - name: Vaciar el bucket de registros del balanceador
+        run: |
+          BUCKET=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id AlbLogBucket \
+            --query StackResourceDetail.PhysicalResourceId --output text 2>/dev/null || true)
+          if [ -n "$BUCKET" ] && [ "$BUCKET" != "None" ]; then aws s3 rm "s3://$BUCKET" --recursive --quiet; fi
+      - name: Eliminar la pila y esperar
+        run: |
+          aws cloudformation delete-stack --stack-name "$STACK"
+          aws cloudformation wait stack-delete-complete --stack-name "$STACK"
+      - name: Eliminar el certificado autofirmado del laboratorio
+        run: |
+          for ARN in $(aws acm list-certificates \
+              --query "CertificateSummaryList[?DomainName=='codigo00.lab'].CertificateArn" --output text); do
+            aws acm delete-certificate --certificate-arn "$ARN"
+          done

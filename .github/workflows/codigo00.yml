@@ -1,5 +1,7 @@
-# Código 00 — compuertas automatizadas de calidad y seguridad.
-# Un cambio solo llega a producción si todas las compuertas responden "00".
+# Código 00 — compuertas automatizadas de calidad y seguridad, del código a la nube.
+# Módulo 1 (código): G1, G2, G3, G5, G4, G6, G7. Módulo 2 (IaC y contenedores): G8 y G9.
+# Módulo 3 (nube): despliegue con CloudFormation, pruebas de humo y evaluación de postura (CSPM) con Prowler.
+# Un cambio solo se despliega si todas las compuertas responden "00".
 name: Código 00 — pipeline DevSecOps
 
 on:
@@ -18,9 +20,12 @@ concurrency:
 env:
   PYTHON_VERSION: "3.11"
   CODIGO00_API_KEYS: '{"ci-key-a": "COMERCIO_A", "ci-key-b": "COMERCIO_B"}'
+  SEMGREP_VERSION: "1.183.0"
+  SEMGREP_RULES_COMMIT: 16b9e6d45f10649f6a531ec4838ed9924372c3bc
+  TRIVY_IMAGE: aquasec/trivy:0.57.1
 
 jobs:
-  # ---------------------------------------------------------------- Etapa 1
+  # ---------------------------------------------------------------- Etapa 1: análisis estático
   g1-pruebas:
     name: G1 · Pruebas unitarias y funcionales + cobertura ≥ 85 %
     runs-on: ubuntu-latest
@@ -37,18 +42,32 @@ jobs:
         with: { name: g1-pruebas, path: "g1-junit.xml\ncoverage.xml" }
 
   g2-sast:
-    name: G2 · SAST (Bandit, bloquea severidad media o alta)
+    name: G2 · SAST (Bandit + Semgrep)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip }
-      - run: pip install -r requirements-dev.txt
-      - run: bandit -r app -f json -o g2-bandit.json || true
-      - run: bandit -r app --severity-level medium
+      - run: pip install -r requirements-dev.txt "semgrep==${{ env.SEMGREP_VERSION }}"
+      - name: Bandit (bloquea severidad media o alta)
+        run: |
+          bandit -r app -f json -o g2-bandit.json || true
+          bandit -r app --severity-level medium
+      - name: Reglas de Semgrep fijadas por commit
+        run: |
+          git init -q semgrep-rules
+          git -C semgrep-rules fetch -q --depth 1 https://github.com/semgrep/semgrep-rules "$SEMGREP_RULES_COMMIT"
+          git -C semgrep-rules checkout -q FETCH_HEAD
+      - name: Semgrep (bloquea cualquier hallazgo de seguridad)
+        run: >
+          semgrep scan --metrics=off --disable-version-check --error
+          --config semgrep-rules/python/lang/security
+          --config semgrep-rules/python/requests/security
+          --config semgrep-rules/python/fastapi/security
+          --json-output=g2-semgrep.json app
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: g2-sast, path: g2-bandit.json }
+        with: { name: g2-sast, path: "g2-bandit.json\ng2-semgrep.json" }
 
   g3-sca:
     name: G3 · SCA (pip-audit) + SBOM CycloneDX
@@ -94,9 +113,9 @@ jobs:
         if: always()
         with: { name: g8-infraestructura, path: g8-checkov.json }
 
-  # ---------------------------------------------------------------- Etapa 2
+  # ---------------------------------------------------------------- Etapa 2: imagen y servicio en ejecución
   pruebas-dinamicas:
-    name: G4 · G6 · G7 · Contrato, DAST y rendimiento sobre el servicio
+    name: G9 · G4 · G6 · G7 · Imagen, contrato, DAST y rendimiento
     needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio, g8-infraestructura]
     runs-on: ubuntu-latest
     env:
@@ -104,18 +123,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Construir imagen
-        run: docker build -t codigo00:${{ github.sha }} .
+        run: docker build -t "codigo00:${{ github.sha }}" .
+
+      - name: G9 · Escaneo de la imagen del contenedor (Trivy, bloquea HIGH y CRITICAL con corrección)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache \
+            -v "$PWD":/out "$TRIVY_IMAGE" image --scanners vuln --severity HIGH,CRITICAL \
+            --format json -o /out/g9-trivy.json "codigo00:${{ github.sha }}"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache \
+            "$TRIVY_IMAGE" image --skip-db-update --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+            --exit-code 1 "codigo00:${{ github.sha }}"
+
       - name: Levantar servicio en entorno de pruebas
         run: |
           docker run -d --name codigo00 --network host \
             -e CODIGO00_API_KEYS='${{ env.CODIGO00_API_KEYS }}' -e CODIGO00_ENABLE_DOCS=1 \
-            codigo00:${{ github.sha }}
-          for i in $(seq 1 30); do curl -fs $BASE_URL/health && break; sleep 1; done
+            "codigo00:${{ github.sha }}"
+          for i in $(seq 1 30); do curl -fs "$BASE_URL/health" && break; sleep 1; done
 
       - name: G4 · Pruebas de contrato (Newman)
         run: |
           npx --yes newman@6 run postman/codigo00.postman_collection.json \
-            --env-var baseUrl=$BASE_URL --env-var apiKeyA=ci-key-a --env-var apiKeyB=ci-key-b \
+            --env-var baseUrl="$BASE_URL" --env-var apiKeyA=ci-key-a --env-var apiKeyB=ci-key-b \
             --reporters cli,json --reporter-json-export g4-newman.json
 
       - name: G6 · DAST (OWASP ZAP, bloquea riesgo medio o alto)
@@ -133,15 +162,17 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: pruebas-dinamicas, path: "g4-newman.json\ng6-zap/\ng7-k6.json" }
+        with: { name: pruebas-dinamicas, path: "g9-trivy.json\ng4-newman.json\ng6-zap/\ng7-k6.json" }
 
-  # ---------------------------------------------------------------- Etapa 3
+  # ---------------------------------------------------------------- Etapa 3: despliegue en AWS (Módulo 3)
   desplegar:
     name: Despliegue en AWS (solo si todo respondió 00)
     needs: pruebas-dinamicas
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: produccion
+    env:
+      STACK: codigo00
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4
@@ -149,46 +180,146 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Rol del laboratorio y certificado del balanceador
+        env:
+          LAB_ROLE_VAR: ${{ vars.LAB_ROLE_ARN }}
+          CERT_VAR: ${{ vars.CERTIFICATE_ARN }}
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          LAB_ROLE_ARN="${LAB_ROLE_VAR:-arn:aws:iam::${ACCOUNT}:role/LabRole}"
+          CERT_ARN="$CERT_VAR"
+          if [ -z "$CERT_ARN" ]; then
+            CERT_ARN=$(aws acm list-certificates \
+              --query "CertificateSummaryList[?DomainName=='codigo00.lab'].CertificateArn | [0]" --output text)
+            if [ -z "$CERT_ARN" ] || [ "$CERT_ARN" = "None" ]; then
+              # Certificado autofirmado de laboratorio (sin dominio propio); se importa en ACM.
+              openssl req -x509 -newkey rsa:2048 -nodes -days 90 -subj "/CN=codigo00.lab" \
+                -keyout key.pem -out cert.pem 2>/dev/null
+              CERT_ARN=$(aws acm import-certificate --certificate fileb://cert.pem --private-key fileb://key.pem \
+                --tags Key=proyecto,Value=codigo00 --query CertificateArn --output text)
+              rm -f key.pem cert.pem
+            fi
+          fi
+          echo "LAB_ROLE_ARN=$LAB_ROLE_ARN" >> "$GITHUB_ENV"
+          echo "CERT_ARN=$CERT_ARN" >> "$GITHUB_ENV"
+
       - name: Crear la infraestructura base si aún no existe
         run: |
-          if ! aws cloudformation describe-stacks --stack-name codigo00 >/dev/null 2>&1; then
-            aws cloudformation deploy --stack-name codigo00 --template-file infra/codigo00-infra.yaml \
+          if ! aws cloudformation describe-stacks --stack-name "$STACK" >/dev/null 2>&1; then
+            aws cloudformation deploy --stack-name "$STACK" --template-file infra/codigo00-infra.yaml \
               --parameter-overrides ImageUri=public.ecr.aws/docker/library/python:3.11-slim DesiredCount=0 \
-                LabRoleArn=${{ vars.LAB_ROLE_ARN }} CertificateArn=${{ vars.CERTIFICATE_ARN }}
+                LabRoleArn="$LAB_ROLE_ARN" CertificateArn="$CERT_ARN"
           fi
+
+      - name: Llaves de API reales para los comercios (sin mostrarlas)
+        run: |
+          SECRET_ID=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \
+            --logical-resource-id ApiKeysSecret --query StackResourceDetail.PhysicalResourceId --output text)
+          if aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text \
+               | grep -q '"placeholder"'; then
+            KEY_A=$(openssl rand -hex 24)
+            aws secretsmanager put-secret-value --secret-id "$SECRET_ID" \
+              --secret-string "{\"$KEY_A\": \"COMERCIO_A\"}" > /dev/null
+          fi
+
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
       - name: Publicar la imagen en Amazon ECR (etiqueta inmutable = SHA del commit)
         run: |
-          IMAGE=${{ steps.ecr.outputs.registry }}/codigo00:${{ github.sha }}
-          docker build -t "$IMAGE" . && docker push "$IMAGE"
+          IMAGE="${{ steps.ecr.outputs.registry }}/codigo00:${{ github.sha }}"
+          if ! aws ecr describe-images --repository-name codigo00 --image-ids imageTag="${{ github.sha }}" >/dev/null 2>&1; then
+            docker build -t "$IMAGE" . && docker push "$IMAGE"
+          fi
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
       - name: Desplegar la nueva versión con CloudFormation
         run: |
-          aws cloudformation deploy --stack-name codigo00 --template-file infra/codigo00-infra.yaml \
+          aws cloudformation deploy --stack-name "$STACK" --template-file infra/codigo00-infra.yaml \
             --parameter-overrides ImageUri="$IMAGE" DesiredCount=1 \
-              LabRoleArn=${{ vars.LAB_ROLE_ARN }} CertificateArn=${{ vars.CERTIFICATE_ARN }} \
+              LabRoleArn="$LAB_ROLE_ARN" CertificateArn="$CERT_ARN" \
             --no-fail-on-empty-changeset
+
+      - name: Eventos fallidos de la pila (diagnóstico)
+        if: failure()
+        run: |
+          aws cloudformation describe-stack-events --stack-name "$STACK" --max-items 40 \
+            --query "StackEvents[?contains(ResourceStatus, 'FAILED')].[Timestamp,LogicalResourceId,ResourceStatusReason]" \
+            --output table || true
+
+      - name: Pruebas de humo sobre el servicio desplegado
+        run: |
+          URL=$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          for i in $(seq 1 40); do
+            [ "$(curl -sk -o /dev/null -w '%{http_code}' "$URL/health")" = "200" ] && break; sleep 15
+          done
+          probe() { curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$1" || true; }
+          HEALTH=$(probe "$URL/health")
+          NOAUTH=$(probe "$URL/v1/transactions/abc")
+          WAF=$(probe "$URL/health?id=1%27%20OR%20%271%27%3D%271")
+          HTTP80=$(probe "http://${URL#https://}/health")
+          {
+            echo "## Pruebas de humo en AWS"
+            echo "| Prueba | Esperado | Obtenido |"
+            echo "|---|---|---|"
+            echo "| GET /health por HTTPS | 200 | $HEALTH |"
+            echo "| Consulta sin llave de API | 401 | $NOAUTH |"
+            echo "| Inyección SQL en la consulta (AWS WAF) | 403 | $WAF |"
+            echo "| HTTP sin TLS por el puerto 80 | sin respuesta (000) | $HTTP80 |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          printf '{"url": "%s", "health": "%s", "sin_llave": "%s", "waf_sqli": "%s", "http80": "%s"}\n' \
+            "$URL" "$HEALTH" "$NOAUTH" "$WAF" "$HTTP80" > smoke.json
+          [ "$HEALTH" = 200 ] && [ "$NOAUTH" = 401 ] && [ "$WAF" = 403 ] && [ "$HTTP80" = 000 ]
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: despliegue-aws, path: smoke.json, if-no-files-found: ignore }
+
+  cspm:
+    name: Postura de seguridad en AWS (Prowler, CSPM)
+    needs: desplegar
+    runs-on: ubuntu-latest
+    environment: produccion
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - run: pip install "prowler>=5,<6"
+      - name: Prowler sobre la región del despliegue
+        run: |
+          prowler aws --region "$AWS_REGION" --output-formats csv html json-ocsf \
+            --output-directory prowler --output-filename codigo00-cspm --ignore-exit-code-3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: cspm-prowler, path: prowler/, if-no-files-found: ignore }
 
   # ---------------------------------------------------------------- Reporte
   reporte:
     name: Reporte consolidado (códigos 00 / 05)
-    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio, g8-infraestructura, pruebas-dinamicas]
+    needs: [g1-pruebas, g2-sast, g3-sca, g5-seguridad-negocio, g8-infraestructura, pruebas-dinamicas, desplegar, cspm]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Resumen de compuertas
         run: |
-          code() { [ "$1" = "success" ] && echo "00 Aprobada" || echo "05 Rechazada ($1)"; }
+          code() { case "$1" in success) echo "00 Aprobada";; skipped) echo "No ejecutado";; *) echo "05 Rechazada ($1)";; esac; }
           {
             echo "## Código 00 — resultado de compuertas"
             echo "| Compuerta | Código |"
             echo "|---|---|"
             echo "| G1 Pruebas + cobertura | $(code ${{ needs.g1-pruebas.result }}) |"
-            echo "| G2 SAST | $(code ${{ needs.g2-sast.result }}) |"
+            echo "| G2 SAST (Bandit + Semgrep) | $(code ${{ needs.g2-sast.result }}) |"
             echo "| G3 SCA + SBOM | $(code ${{ needs.g3-sca.result }}) |"
             echo "| G5 Seguridad de negocio | $(code ${{ needs.g5-seguridad-negocio.result }}) |"
             echo "| G8 Infraestructura como código | $(code ${{ needs.g8-infraestructura.result }}) |"
-            echo "| G4 · G6 · G7 Contrato, DAST, rendimiento | $(code ${{ needs.pruebas-dinamicas.result }}) |"
+            echo "| G9 · G4 · G6 · G7 Imagen, contrato, DAST, rendimiento | $(code ${{ needs.pruebas-dinamicas.result }}) |"
+            echo "| Despliegue en AWS | $(code ${{ needs.desplegar.result }}) |"
+            echo "| CSPM (Prowler) | $(code ${{ needs.cspm.result }}) |"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -8,3 +8,4 @@ reports/
 node_modules/
 .venv/
 venv/
+semgrep-rules/

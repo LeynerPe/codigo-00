@@ -31,30 +31,39 @@ Recursos que crea la plantilla (38 en total):
 - **Amazon CloudWatch Logs**: registros de la API, del WAF y de la red, con retención de 365 días y
   cifrado con KMS (el PAN nunca se registra completo).
 
-## Preparación (una sola vez)
+## Preparación (en cada sesión de AWS Academy)
 
-1. Importar o solicitar en AWS Certificate Manager un certificado para el dominio del balanceador
-   y copiar su ARN.
-2. Copiar el ARN del rol `LabRole` del laboratorio (AWS Academy no permite crear roles de IAM).
-3. En GitHub → *Settings* → *Environments* → `produccion`, configurar:
-   - Secretos: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` (en AWS Academy las
-     credenciales son temporales y se renuevan en cada sesión del laboratorio).
-   - Variables: `AWS_REGION`, `LAB_ROLE_ARN`, `CERTIFICATE_ARN`.
-   - Revisores obligatorios, si se quiere una aprobación manual antes de producción.
+1. En AWS Academy, abrir el laboratorio (Learner Lab), pulsar **Start Lab** y luego **AWS Details →
+   AWS CLI: Show**.
+2. En GitHub → *Settings* → *Environments* → `produccion` (o *Secrets and variables → Actions*), cargar los
+   secretos `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN` con esos valores. Las
+   credenciales del laboratorio expiran al terminar la sesión.
+3. Opcional: la variable `AWS_REGION` (por defecto `us-east-1`). `LAB_ROLE_ARN` y `CERTIFICATE_ARN` también
+   son opcionales: si no existen, el flujo usa el rol `LabRole` de la cuenta y crea un certificado autofirmado
+   de laboratorio (`codigo00.lab`) que importa en AWS Certificate Manager.
+4. En *Actions*, ejecutar a mano el flujo **Código 00 — pipeline DevSecOps** sobre `main`.
 
-## Qué hace el job `desplegar`
+## Qué hace el flujo después de las compuertas
 
-1. Si la pila `codigo00` no existe, la crea con `DesiredCount=0` y una imagen de marcador de
-   posición, para que exista el repositorio de Amazon ECR.
-2. Construye la imagen y la publica en Amazon ECR con la etiqueta del SHA del commit.
-3. Ejecuta `aws cloudformation deploy` con `ImageUri` = esa imagen y `DesiredCount=1`.
+1. **desplegar:** si la pila `codigo00` no existe, la crea con `DesiredCount=0`; reemplaza la llave de API de
+   marcador de posición por una llave aleatoria (sin mostrarla); publica la imagen en Amazon ECR con la
+   etiqueta del SHA del commit; despliega la plantilla con `DesiredCount=1` y ejecuta pruebas de humo:
+   `GET /health` por HTTPS (200), consulta sin llave (401), inyección SQL bloqueada por AWS WAF (403) y
+   ausencia de respuesta por HTTP en el puerto 80. Si la pila falla, imprime sus eventos fallidos.
+2. **cspm:** ejecuta Prowler sobre la región del despliegue y publica el reporte (HTML, CSV y JSON OCSF) como
+   artefacto `cspm-prowler`.
+
+Para no consumir créditos, al terminar se ejecuta a mano el flujo **Código 00 — eliminar despliegue en AWS**,
+que vacía el bucket de registros, elimina la pila y borra el certificado de laboratorio.
 
 ## Limitaciones conocidas
 
 - La API guarda las transacciones en una base SQLite local de la tarea, por lo que los datos no
   persisten si la tarea se reinicia y el servicio no puede escalar a más de una tarea sin una base de
   datos compartida (por ejemplo, Amazon RDS). Por eso `DesiredCount` solo admite 0 o 1.
-- La llave de API de los comercios se carga en Secrets Manager después de crear la pila
-  (`aws secretsmanager put-secret-value`), para no escribirla en la plantilla.
+- La llave de API de los comercios no se escribe en la plantilla: el flujo la genera y la guarda en Secrets
+  Manager en el primer despliegue (`aws secretsmanager put-secret-value`).
+- El certificado autofirmado solo sirve para el laboratorio: los clientes deben aceptar el certificado
+  (por ejemplo, `curl -k`). En producción se usaría un certificado de ACM validado para un dominio propio.
 - Las credenciales del laboratorio expiran al terminar la sesión; conviene volver a cargar los
   secretos de GitHub antes de cada demostración.

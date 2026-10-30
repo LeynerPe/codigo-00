@@ -185,6 +185,7 @@ Resources:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: codigo00
+      EmptyOnDelete: true
       ImageTagMutability: IMMUTABLE
       ImageScanningConfiguration: { ScanOnPush: true }
       EncryptionConfiguration: { EncryptionType: KMS, KmsKey: !GetAtt Codigo00Key.Arn }

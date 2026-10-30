@@ -34,6 +34,10 @@ K6 = os.environ.get("K6_BIN", "k6")
 ZAP = os.environ.get("ZAP_SH", "zap.sh")
 CHECKOV = os.environ.get("CHECKOV_BIN", "checkov")
 CFNLINT = os.environ.get("CFNLINT_BIN", "cfn-lint")
+SEMGREP = os.environ.get("SEMGREP_BIN", "semgrep")
+# Reglas de Semgrep: copia local del repositorio semgrep/semgrep-rules (no se redistribuyen con este proyecto)
+SEMGREP_RULES = Path(os.environ.get("SEMGREP_RULES", "semgrep-rules"))
+SEMGREP_CONFIGS = ["python/lang/security", "python/requests/security", "python/fastapi/security"]
 
 COVERAGE_MIN = 85          # G1: cobertura mínima de líneas y ramas (%)
 SAST_BLOCKING = {"MEDIUM", "HIGH"}   # G2: severidades que bloquean
@@ -86,6 +90,7 @@ def gate_tests(src: Path, out: Path) -> dict:
 
 
 def gate_sast(src: Path, out: Path) -> dict:
+    """G2: Bandit (severidad media o alta bloquea) y Semgrep (cualquier hallazgo de seguridad bloquea)."""
     report = out / "g2-bandit.json"
     _, log, secs = run([str(BIN_DIR / "bandit"), "-r", "app", "-f", "json", "-o", str(report), "-q"], src)
     data = json.loads(report.read_text())
@@ -93,14 +98,28 @@ def gate_sast(src: Path, out: Path) -> dict:
     findings = []
     for issue in data["results"]:
         by_sev[issue["issue_severity"]] += 1
-        findings.append({"id": issue["test_id"], "severity": issue["issue_severity"],
+        findings.append({"tool": "bandit", "id": issue["test_id"], "severity": issue["issue_severity"],
                          "confidence": issue["issue_confidence"], "file": issue["filename"],
                          "line": issue["line_number"], "text": issue["issue_text"]})
     blocking = sum(by_sev[s] for s in SAST_BLOCKING)
     loc = data["metrics"]["_totals"]["loc"]
-    return {"ok": blocking == 0, "seconds": secs,
-            "metrics": {**{f"sev_{k.lower()}": v for k, v in by_sev.items()}, "blocking": blocking, "loc": loc},
-            "findings": findings, "log": log}
+    sg_report = out / "g2-semgrep.json"
+    rules = SEMGREP_RULES if SEMGREP_RULES.is_absolute() else src / SEMGREP_RULES
+    cmd = [SEMGREP, "scan", "--metrics=off", "--disable-version-check", "--json", "-q", "-o", str(sg_report)]
+    for cfg in SEMGREP_CONFIGS:
+        cmd += ["--config", str(rules / cfg)]
+    _, log2, secs2 = run(cmd + ["app"], src)
+    sg = json.loads(sg_report.read_text())
+    sg_findings = [{"tool": "semgrep", "id": r["check_id"].split("semgrep-rules.")[-1],
+                    "severity": r["extra"]["severity"], "file": r["path"], "line": r["start"]["line"],
+                    "text": r["extra"]["message"][:200]} for r in sg["results"]]
+    if sg.get("errors"):
+        raise RuntimeError(f"Semgrep reportó errores de ejecución: {sg['errors'][:1]}")
+    findings += sg_findings
+    return {"ok": blocking == 0 and not sg_findings, "seconds": secs + secs2,
+            "metrics": {**{f"sev_{k.lower()}": v for k, v in by_sev.items()}, "blocking": blocking, "loc": loc,
+                        "semgrep_findings": len(sg_findings)},
+            "findings": findings, "log": log + log2}
 
 
 def gate_sca(src: Path, out: Path) -> dict:
@@ -272,7 +291,7 @@ class Service:
 
 GATES = [
     ("G1", "Pruebas unitarias y funcionales + cobertura", "estatica"),
-    ("G2", "Análisis estático de seguridad (SAST, Bandit)", "estatica"),
+    ("G2", "Análisis estático de seguridad (SAST, Bandit + Semgrep)", "estatica"),
     ("G3", "Análisis de dependencias (SCA, pip-audit) + SBOM", "estatica"),
     ("G5", "Pruebas de seguridad de la lógica de negocio", "estatica"),
     ("G8", "Seguridad de la infraestructura como código (cfn-lint + Checkov)", "estatica"),
@@ -368,6 +387,8 @@ def tool_versions() -> dict:
         "zap": "2.17.0",
         "checkov": version([CHECKOV, "--version"]),
         "cfn-lint": version([CFNLINT, "--version"]),
+        "semgrep": version([SEMGREP, "--version"]),
+        "semgrep-rules": version(["git", "-C", str(SEMGREP_RULES), "rev-parse", "--short", "HEAD"]),
     }
 
 
