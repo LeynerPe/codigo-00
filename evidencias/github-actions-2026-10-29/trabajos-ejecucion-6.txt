@@ -1,0 +1,23 @@
+$ gh api repos/LeynerPe/codigo-00/actions/runs/41000818185/jobs   # ejecución n.º 6, commit 2011327
+SUCCESS   G1 · Pruebas unitarias y funcionales + cobertura ≥ 85 %
+SUCCESS   G2 · SAST (Bandit + Semgrep)
+SUCCESS   G3 · SCA (pip-audit) + SBOM CycloneDX
+SUCCESS   G5 · Pruebas de seguridad de la lógica de negocio
+SUCCESS   G8 · Infraestructura como código (cfn-lint + Checkov)
+SUCCESS   G9 · G4 · G6 · G7 · Imagen, contrato, DAST y rendimiento
+FAILURE   Despliegue en AWS (solo si todo respondió 00)
+SKIPPED   Postura de seguridad en AWS (Prowler, CSPM)
+SUCCESS   Reporte consolidado (códigos 00 / 05)
+
+$ gh api .../actions/runs/41000818185/jobs --jq '<pasos del trabajo de despliegue>'
+ 2 success  Run actions/checkout@v4
+ 3 failure  Run aws-actions/configure-aws-credentials@v4
+ 4 skipped  Rol del laboratorio y certificado del balanceador
+ 5 skipped  Crear la infraestructura base si aún no existe
+ 6 skipped  Llaves de API reales para los comercios (sin mostrarlas)
+ 8 skipped  Publicar la imagen en Amazon ECR (etiqueta inmutable = SHA del commit)
+ 9 skipped  Desplegar la nueva versión con CloudFormation
+11 skipped  Pruebas de humo sobre el servicio desplegado
+
+$ gh api repos/LeynerPe/codigo-00/check-runs/123885698969/annotations   # error del paso 3
+failure  Credentials could not be loaded, please check your action inputs: Could not load credentials from any providers
