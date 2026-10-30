@@ -1,0 +1,165 @@
+{
+  "scenario": "limpio",
+  "started_at": "2026-10-30T04:11:12+00:00",
+  "total_seconds": 97.89,
+  "seconds_to_first_failure": null,
+  "overall_code": "00",
+  "deploy": "Listo para desplegar",
+  "gates": [
+    {
+      "gate": "G1",
+      "name": "Pruebas unitarias y funcionales + cobertura",
+      "kind": "estatica",
+      "code": "00",
+      "seconds": 1.55,
+      "metrics": {
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "failed_tests": [],
+        "coverage_pct": 96.4,
+        "coverage_min": 85
+      }
+    },
+    {
+      "gate": "G2",
+      "name": "Análisis estático de seguridad (SAST, Bandit + Semgrep)",
+      "kind": "estatica",
+      "code": "00",
+      "seconds": 8.0,
+      "metrics": {
+        "sev_low": 1,
+        "sev_medium": 0,
+        "sev_high": 0,
+        "blocking": 0,
+        "loc": 429,
+        "semgrep_findings": 0
+      },
+      "findings": [
+        {
+          "tool": "bandit",
+          "id": "B105",
+          "severity": "LOW",
+          "confidence": "MEDIUM",
+          "file": "app/main.py",
+          "line": 166,
+          "text": "Possible hardcoded password: 'None'"
+        }
+      ]
+    },
+    {
+      "gate": "G3",
+      "name": "Análisis de dependencias (SCA, pip-audit) + SBOM",
+      "kind": "estatica",
+      "code": "00",
+      "seconds": 9.14,
+      "metrics": {
+        "vulnerabilities": 0,
+        "packages_audited": 14,
+        "sbom_components": 5,
+        "vulnerable_packages": []
+      },
+      "findings": []
+    },
+    {
+      "gate": "G5",
+      "name": "Pruebas de seguridad de la lógica de negocio",
+      "kind": "estatica",
+      "code": "00",
+      "seconds": 1.03,
+      "metrics": {
+        "total": 31,
+        "passed": 31,
+        "failed": 0,
+        "failed_tests": []
+      }
+    },
+    {
+      "gate": "G8",
+      "name": "Seguridad de la infraestructura como código (cfn-lint + Checkov)",
+      "kind": "estatica",
+      "code": "00",
+      "seconds": 3.76,
+      "metrics": {
+        "cfn_lint_errors": 0,
+        "checkov_passed": 373,
+        "checkov_failed": 0,
+        "checkov_skipped": 1,
+        "failed_ids": []
+      },
+      "findings": []
+    },
+    {
+      "gate": "G4",
+      "name": "Pruebas de contrato de la API (Newman)",
+      "kind": "dinamica",
+      "code": "00",
+      "seconds": 1.14,
+      "metrics": {
+        "requests": 17,
+        "assertions": 95,
+        "assertions_failed": 0,
+        "failed": []
+      }
+    },
+    {
+      "gate": "G6",
+      "name": "Análisis dinámico de seguridad (DAST, OWASP ZAP)",
+      "kind": "dinamica",
+      "code": "00",
+      "seconds": 27.07,
+      "metrics": {
+        "alerts_info": 1,
+        "alerts_low": 0,
+        "alerts_medium": 0,
+        "alerts_high": 0,
+        "blocking": 0,
+        "requests_sent": 6248
+      },
+      "findings": [
+        {
+          "name": "User Agent Fuzzer",
+          "risk": 0,
+          "riskdesc": "Informational (Medium)",
+          "count": 3,
+          "pluginid": "10104",
+          "uris": [
+            "http://127.0.0.1:41125/v1/authorizations",
+            "http://127.0.0.1:41125/v1/reversals"
+          ]
+        }
+      ]
+    },
+    {
+      "gate": "G7",
+      "name": "Pruebas de rendimiento (k6)",
+      "kind": "dinamica",
+      "code": "00",
+      "seconds": 45.36,
+      "metrics": {
+        "requests": 6972,
+        "rps": 154.6,
+        "p95_ms": 15.81,
+        "p90_ms": 12.9,
+        "avg_ms": 7.0,
+        "max_ms": 64.16,
+        "error_rate": 0,
+        "checks_rate": 1,
+        "thresholds_ok": true
+      }
+    }
+  ],
+  "tools": {
+    "python": "3.11.15",
+    "pytest": "pytest 9.1.1",
+    "bandit": "bandit 1.9.4",
+    "pip-audit": "pip-audit 2.10.1",
+    "newman": "6.2.3",
+    "k6": "k6 v1.3.0 (commit/5870e99ae8, go1.25.1, linux/amd64)",
+    "zap": "2.17.0",
+    "checkov": "3.3.29",
+    "cfn-lint": "cfn-lint 1.57.2",
+    "semgrep": "1.183.0",
+    "semgrep-rules": "16b9e6d"
+  }
+}

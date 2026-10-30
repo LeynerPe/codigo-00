@@ -1,5 +1,6 @@
 # Elimina la pila de AWS de Código 00 para no consumir los créditos del laboratorio.
 # Se ejecuta solo a mano: Actions → "Código 00 — eliminar despliegue en AWS" → Run workflow.
+# El balanceador tiene protección contra eliminación, así que primero se desactiva.
 name: Código 00 — eliminar despliegue en AWS
 
 on:
@@ -27,6 +28,14 @@ jobs:
           BUCKET=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id AlbLogBucket \
             --query StackResourceDetail.PhysicalResourceId --output text 2>/dev/null || true)
           if [ -n "$BUCKET" ] && [ "$BUCKET" != "None" ]; then aws s3 rm "s3://$BUCKET" --recursive --quiet; fi
+      - name: Desactivar la protección contra eliminación del balanceador
+        run: |
+          ALB=$(aws cloudformation describe-stack-resource --stack-name "$STACK" --logical-resource-id LoadBalancer \
+            --query StackResourceDetail.PhysicalResourceId --output text 2>/dev/null || true)
+          if [ -n "$ALB" ] && [ "$ALB" != "None" ]; then
+            aws elbv2 modify-load-balancer-attributes --load-balancer-arn "$ALB" \
+              --attributes Key=deletion_protection.enabled,Value=false > /dev/null
+          fi
       - name: Eliminar la pila y esperar
         run: |
           aws cloudformation delete-stack --stack-name "$STACK"

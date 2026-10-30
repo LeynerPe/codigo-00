@@ -1,0 +1,706 @@
+[
+ {
+  "check_type": "dockerfile",
+  "results": {
+   "failed_checks": []
+  },
+  "summary": {
+   "passed": 48,
+   "failed": 0,
+   "skipped": 0,
+   "parsing_errors": 0,
+   "resource_count": 1,
+   "checkov_version": "3.3.29"
+  }
+ },
+ {
+  "check_type": "cloudformation",
+  "results": {
+   "failed_checks": [
+    {
+     "check_id": "CKV_AWS_260",
+     "bc_check_id": null,
+     "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/SecurityGroupIngress"
+      ]
+     },
+     "code_block": [
+      [
+       153,
+       "  AlbSecurityGroup:\n"
+      ],
+      [
+       154,
+       "    Type: AWS::EC2::SecurityGroup\n"
+      ],
+      [
+       155,
+       "    Properties:\n"
+      ],
+      [
+       156,
+       "      GroupDescription: Balanceador de Codigo 00, solo HTTPS desde internet\n"
+      ],
+      [
+       157,
+       "      VpcId: !Ref Vpc\n"
+      ],
+      [
+       158,
+       "      SecurityGroupIngress:\n"
+      ],
+      [
+       159,
+       "        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: HTTP de los comercios }\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      153,
+      159
+     ],
+     "resource": "AWS::EC2::SecurityGroup.AlbSecurityGroup",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.SecurityGroupUnrestrictedIngress80",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_24",
+     "bc_check_id": null,
+     "check_name": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/SecurityGroupIngress"
+      ]
+     },
+     "code_block": [
+      [
+       161,
+       "  TaskSecurityGroup:\n"
+      ],
+      [
+       162,
+       "    Type: AWS::EC2::SecurityGroup\n"
+      ],
+      [
+       163,
+       "    Properties:\n"
+      ],
+      [
+       164,
+       "      GroupDescription: Tareas de Codigo 00, solo trafico desde el balanceador\n"
+      ],
+      [
+       165,
+       "      VpcId: !Ref Vpc\n"
+      ],
+      [
+       166,
+       "      SecurityGroupIngress:\n"
+      ],
+      [
+       167,
+       "        - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, SourceSecurityGroupId: !Ref AlbSecurityGroup,\n"
+      ],
+      [
+       168,
+       "            Description: Trafico del balanceador a la API }\n"
+      ],
+      [
+       169,
+       "        - { IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: 0.0.0.0/0, Description: Soporte remoto }\n"
+      ],
+      [
+       170,
+       "      SecurityGroupEgress:\n"
+      ],
+      [
+       171,
+       "        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0,\n"
+      ],
+      [
+       172,
+       "            Description: HTTPS hacia ECR Secrets Manager y CloudWatch via NAT }\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      161,
+      172
+     ],
+     "resource": "AWS::EC2::SecurityGroup.TaskSecurityGroup",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.SecurityGroupUnrestrictedIngress22",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_136",
+     "bc_check_id": null,
+     "check_name": "Ensure that ECR repositories are encrypted using KMS",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/EncryptionConfiguration/EncryptionType"
+      ]
+     },
+     "code_block": [
+      [
+       185,
+       "  Repository:\n"
+      ],
+      [
+       186,
+       "    Type: AWS::ECR::Repository\n"
+      ],
+      [
+       187,
+       "    Properties:\n"
+      ],
+      [
+       188,
+       "      RepositoryName: codigo00\n"
+      ],
+      [
+       189,
+       "      EmptyOnDelete: true\n"
+      ],
+      [
+       190,
+       "      ImageTagMutability: MUTABLE\n"
+      ],
+      [
+       191,
+       "      ImageScanningConfiguration: { ScanOnPush: false }\n"
+      ],
+      [
+       192,
+       "      LifecyclePolicy:\n"
+      ],
+      [
+       193,
+       "        LifecyclePolicyText: >\n"
+      ],
+      [
+       194,
+       "          {\"rules\":[{\"rulePriority\":1,\"description\":\"Conservar las ultimas 20 imagenes\",\n"
+      ],
+      [
+       195,
+       "          \"selection\":{\"tagStatus\":\"any\",\"countType\":\"imageCountMoreThan\",\"countNumber\":20},\n"
+      ],
+      [
+       196,
+       "          \"action\":{\"type\":\"expire\"}}]}\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      185,
+      196
+     ],
+     "resource": "AWS::ECR::Repository.Repository",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.ECRRepositoryEncrypted",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_51",
+     "bc_check_id": null,
+     "check_name": "Ensure ECR Image Tags are immutable",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/ImageTagMutability"
+      ]
+     },
+     "code_block": [
+      [
+       185,
+       "  Repository:\n"
+      ],
+      [
+       186,
+       "    Type: AWS::ECR::Repository\n"
+      ],
+      [
+       187,
+       "    Properties:\n"
+      ],
+      [
+       188,
+       "      RepositoryName: codigo00\n"
+      ],
+      [
+       189,
+       "      EmptyOnDelete: true\n"
+      ],
+      [
+       190,
+       "      ImageTagMutability: MUTABLE\n"
+      ],
+      [
+       191,
+       "      ImageScanningConfiguration: { ScanOnPush: false }\n"
+      ],
+      [
+       192,
+       "      LifecyclePolicy:\n"
+      ],
+      [
+       193,
+       "        LifecyclePolicyText: >\n"
+      ],
+      [
+       194,
+       "          {\"rules\":[{\"rulePriority\":1,\"description\":\"Conservar las ultimas 20 imagenes\",\n"
+      ],
+      [
+       195,
+       "          \"selection\":{\"tagStatus\":\"any\",\"countType\":\"imageCountMoreThan\",\"countNumber\":20},\n"
+      ],
+      [
+       196,
+       "          \"action\":{\"type\":\"expire\"}}]}\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      185,
+      196
+     ],
+     "resource": "AWS::ECR::Repository.Repository",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.ECRImmutableTags",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_163",
+     "bc_check_id": null,
+     "check_name": "Ensure ECR image scanning on push is enabled",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/ImageScanningConfiguration/ScanOnPush"
+      ]
+     },
+     "code_block": [
+      [
+       185,
+       "  Repository:\n"
+      ],
+      [
+       186,
+       "    Type: AWS::ECR::Repository\n"
+      ],
+      [
+       187,
+       "    Properties:\n"
+      ],
+      [
+       188,
+       "      RepositoryName: codigo00\n"
+      ],
+      [
+       189,
+       "      EmptyOnDelete: true\n"
+      ],
+      [
+       190,
+       "      ImageTagMutability: MUTABLE\n"
+      ],
+      [
+       191,
+       "      ImageScanningConfiguration: { ScanOnPush: false }\n"
+      ],
+      [
+       192,
+       "      LifecyclePolicy:\n"
+      ],
+      [
+       193,
+       "        LifecyclePolicyText: >\n"
+      ],
+      [
+       194,
+       "          {\"rules\":[{\"rulePriority\":1,\"description\":\"Conservar las ultimas 20 imagenes\",\n"
+      ],
+      [
+       195,
+       "          \"selection\":{\"tagStatus\":\"any\",\"countType\":\"imageCountMoreThan\",\"countNumber\":20},\n"
+      ],
+      [
+       196,
+       "          \"action\":{\"type\":\"expire\"}}]}\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      185,
+      196
+     ],
+     "resource": "AWS::ECR::Repository.Repository",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.ECRImageScanning",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_66",
+     "bc_check_id": null,
+     "check_name": "Ensure that CloudWatch Log Group specifies retention days",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/RetentionInDays"
+      ]
+     },
+     "code_block": [
+      [
+       213,
+       "  AppLogGroup:\n"
+      ],
+      [
+       214,
+       "    Type: AWS::Logs::LogGroup\n"
+      ],
+      [
+       215,
+       "    Properties:\n"
+      ],
+      [
+       216,
+       "      LogGroupName: /codigo00/api\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      213,
+      216
+     ],
+     "resource": "AWS::Logs::LogGroup.AppLogGroup",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.CloudWatchLogGroupRetention",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_158",
+     "bc_check_id": null,
+     "check_name": "Ensure that CloudWatch Log Group is encrypted by KMS",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/KmsKeyId"
+      ]
+     },
+     "code_block": [
+      [
+       213,
+       "  AppLogGroup:\n"
+      ],
+      [
+       214,
+       "    Type: AWS::Logs::LogGroup\n"
+      ],
+      [
+       215,
+       "    Properties:\n"
+      ],
+      [
+       216,
+       "      LogGroupName: /codigo00/api\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      213,
+      216
+     ],
+     "resource": "AWS::Logs::LogGroup.AppLogGroup",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.CloudWatchLogGroupKMSKey",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_2",
+     "bc_check_id": null,
+     "check_name": "Ensure ALB protocol is HTTPS",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/Protocol",
+       "Properties/DefaultActions"
+      ]
+     },
+     "code_block": [
+      [
+       336,
+       "  HttpsListener:\n"
+      ],
+      [
+       337,
+       "    Type: AWS::ElasticLoadBalancingV2::Listener\n"
+      ],
+      [
+       338,
+       "    Properties:\n"
+      ],
+      [
+       339,
+       "      LoadBalancerArn: !Ref LoadBalancer\n"
+      ],
+      [
+       340,
+       "      Protocol: HTTP\n"
+      ],
+      [
+       341,
+       "      Port: 80\n"
+      ],
+      [
+       342,
+       "      DefaultActions: [{ Type: forward, TargetGroupArn: !Ref TargetGroup }]\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      336,
+      342
+     ],
+     "resource": "AWS::ElasticLoadBalancingV2::Listener.HttpsListener",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.ALBListenerHTTPS",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    },
+    {
+     "check_id": "CKV_AWS_103",
+     "bc_check_id": null,
+     "check_name": "Ensure that Load Balancer Listener is using at least TLS v1.2",
+     "check_result": {
+      "result": "FAILED",
+      "evaluated_keys": [
+       "Properties/Protocol",
+       "Properties/SslPolicy"
+      ]
+     },
+     "code_block": [
+      [
+       336,
+       "  HttpsListener:\n"
+      ],
+      [
+       337,
+       "    Type: AWS::ElasticLoadBalancingV2::Listener\n"
+      ],
+      [
+       338,
+       "    Properties:\n"
+      ],
+      [
+       339,
+       "      LoadBalancerArn: !Ref LoadBalancer\n"
+      ],
+      [
+       340,
+       "      Protocol: HTTP\n"
+      ],
+      [
+       341,
+       "      Port: 80\n"
+      ],
+      [
+       342,
+       "      DefaultActions: [{ Type: forward, TargetGroupArn: !Ref TargetGroup }]\n"
+      ]
+     ],
+     "file_path": "/infra/codigo00-infra.yaml",
+     "file_abs_path": "./infra/codigo00-infra.yaml",
+     "repo_file_path": "/infra/codigo00-infra.yaml",
+     "file_line_range": [
+      336,
+      342
+     ],
+     "resource": "AWS::ElasticLoadBalancingV2::Listener.HttpsListener",
+     "evaluations": {},
+     "check_class": "checkov.cloudformation.checks.resource.aws.ALBListenerTLS12",
+     "fixed_definition": null,
+     "entity_tags": null,
+     "caller_file_path": null,
+     "caller_file_line_range": null,
+     "resource_address": null,
+     "severity": null,
+     "bc_category": null,
+     "benchmarks": null,
+     "description": null,
+     "short_description": null,
+     "vulnerability_details": null,
+     "connected_node": null,
+     "guideline": null,
+     "details": [],
+     "check_len": null,
+     "definition_context_file_path": null
+    }
+   ]
+  },
+  "summary": {
+   "passed": 28,
+   "failed": 9,
+   "skipped": 1,
+   "parsing_errors": 0,
+   "resource_count": 38,
+   "checkov_version": "3.3.29"
+  }
+ },
+ {
+  "check_type": "github_actions",
+  "results": {
+   "failed_checks": []
+  },
+  "summary": {
+   "passed": 288,
+   "failed": 0,
+   "skipped": 0,
+   "parsing_errors": 0,
+   "resource_count": 0,
+   "checkov_version": "3.3.29"
+  }
+ }
+]
