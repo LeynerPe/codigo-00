@@ -131,6 +131,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache \
             -v "$PWD":/out "$TRIVY_IMAGE" image --scanners vuln --severity HIGH,CRITICAL \
             --format json -o /out/g9-trivy.json "codigo00:${{ github.sha }}"
+          python3 pipeline/resumen_trivy.py g9-trivy.json
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache \
             "$TRIVY_IMAGE" image --skip-db-update --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
             --exit-code 1 "codigo00:${{ github.sha }}"
