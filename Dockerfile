@@ -4,7 +4,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /srv
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# setuptools y wheel solo sirven para instalar paquetes: se retiran de la imagen final porque Trivy (G9)
+# reportó vulnerabilidades HIGH con corrección en wheel 0.45.1 y en jaraco.context 5.3.0 (incluido en setuptools).
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y setuptools wheel
 
 COPY app ./app
 
