@@ -48,7 +48,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}", cache: pip }
-      - run: pip install -r requirements-dev.txt "semgrep==${{ env.SEMGREP_VERSION }}"
+      - name: Instalar Bandit y Semgrep (el análisis estático no necesita las dependencias de la API)
+        run: pip install "bandit==1.9.4" "semgrep==${{ env.SEMGREP_VERSION }}"
       - name: Bandit (bloquea severidad media o alta)
         run: |
           bandit -r app -f json -o g2-bandit.json || true

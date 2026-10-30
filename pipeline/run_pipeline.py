@@ -387,7 +387,7 @@ def tool_versions() -> dict:
         "zap": "2.17.0",
         "checkov": version([CHECKOV, "--version"]),
         "cfn-lint": version([CFNLINT, "--version"]),
-        "semgrep": version([SEMGREP, "--version"]),
+        "semgrep": version(["env", "SEMGREP_ENABLE_VERSION_CHECK=0", SEMGREP, "--version"]),
         "semgrep-rules": version(["git", "-C", str(SEMGREP_RULES), "rev-parse", "--short", "HEAD"]),
     }
 
